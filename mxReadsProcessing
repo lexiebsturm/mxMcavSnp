@@ -1,0 +1,260 @@
+#####Note Libraries were prepared twice and sequenced spearately, the first run JA20232 yielded few reads and the second run JA20302 was much better (see separate directories for raw reads), quality control was conducted on both sets of samples and angsd was run on all the files to ensure that run did not have a major effect (see mergedRun). Samples that were sequenced in both runs still clustered tightly together suggesting that run did not have much of an effect on sequencing. We then merged all the files together, concatenating any samples that were sequenced across both runns and collating the rest to have the most complete dataset possible
+
+
+mkdir concatRun
+cd concatRun
+
+mkdir catHighQuality
+cd catHighQuality
+srun cp ~/2bRAD/mexico/JA20302/highQualityReads/*.trim .
+srun cp ~/2bRAD/mexico/JA20232/highQualityReads/*.trim .
+
+##Open concatenatedFiles text file to see how files were concatenated and renamed
+##There should be 106 files in total
+
+################################################################################
+mkdir sams
+srun cp ./catHighQuality/*.trim ./sams
+
+#Ensure that the concatenated MCAV and algal symbiont transcriptomes are in this directory along with the associated genome index files
+
+cd sams
+
+GENOME_FASTA=/home/asturm2017/MCAVgenome/mcavZooxConcatGenomes/mcavZooxConcatGenomes.fasta
+
+# mapping with --local option, enables clipping of mismatching ends (guards against deletions near ends of RAD tags)
+
+2bRAD_bowtie2_launch.pl '\.trim$' /home/asturm2017/MCAVgenome/mcavZooxConcatGenomes/mcavZooxConcatGenomes.fasta > maps #Execute all commands in maps
+
+>alignmentRates
+for F in `ls *trim`; do
+M=`grep -E '^[ATGCN]+$' $F | wc -l | grep -f - maps.e* -A 4 | tail -1 | perl -pe 's/maps\.e\d+-|% overall alignment rate//g'` ;
+echo "$F.sam $M">>alignmentRates;
+done
+
+################################################################################
+mkdir mcavSams
+srun cp ./sams/*.sam ./mcavSams
+
+#Re-write sams files without any reads aligning to algal symbiont genomes
+
+for f in *.trim.bt2.sam
+do
+  egrep -v "chr" < "$f" > "$f".mcav.sam
+done
+
+#These sam files should now only have MCAV reads
+
+################################################################################
+mkdir zooxSams
+srun cp ./sams/*.sam ./zooxSams
+
+#Re-write sams files without any reads aligning to algal symbiont transcriptomes
+
+for f in *.sam
+do
+  egrep "chr" < "$f" > "$f".zoox.sam
+done
+
+#These sam files should now only have zoox reads
+
+################################################################################
+mkdir mcavBams
+srun cp ./mcavSams/*.sam ./mcavBams
+
+#Compressing, sorting and indexing the SAM files, so they become BAM files:
+>s2b
+for file in *.sam; do
+echo "samtools sort -O bam -o ${file/.sam/}.bam $file && samtools index ${file/.sam/}.bam">>s2b;
+done
+
+launcher_creator.py -j s2b -n s2b -t 6:00:00 -e asturm2017@fau.edu -q shortq7
+sbatch s2b.slurm
+
+ls *bam >bams
+
+################################################################################
+srun cp ./mcavBams/*bam* ./mcavANGSDClones/
+
+# angsd settings:
+# -minMapQ 20 : only highly unique mappings (prob of erroneous mapping = 1%)
+# -baq 1 : realign around indels (not terribly relevant for 2bRAD reads mapped with --local option)
+# -maxDepth : highest total depth (sum over all samples) to assess; set to 10x number of samples
+
+FILTERS="-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -maxDepth 1060"
+TODO="-doQsDist 1 -doDepth 1 -doCounts 1 -dumpCounts 2"
+
+srun angsd -b bamsClones -GL 1 $FILTERS $TODO -P 1 -out ddClones
+
+# summarizing results (using modified script by Matteo Fumagalli)
+
+echo '#!/bin/bash' > RQC.sh
+echo 'srun Rscript ~/bin/plotQC.R ddClones > qranks' >> RQC.sh
+sbatch -e RQC.err -o RQC.out --mem=64000m RQC.sh
+
+# proportion of sites covered at >5x:
+
+cat qranks
+
+# scp dd.pdf to laptop to look at distribution of base quality scores, fraction of sites in each sample passing coverage thresholds, and fraction of sites passing genotyping rates cutoffs. Use these to guide choices of -minQ,  -minIndDepth and -minInd filters in subsequent ANGSD runs
+
+##ANGSD WITH NEW FILTERS W CLONES
+
+# Note: PCA and Admixture are not supposed to be run on data that contain clones or genotyping replicates. For PCA, these can be removed without rerunning ANGSD from the IBS distance matrix; but for ngsAdmix ANGSD must be rerun.
+
+# Generating genotype likelihoods from highly confident (non-sequencing-error) SNPs
+# set minInd to 75-80% of your total number of bams
+# if you expect very highly differentiated populations with nearly fixed alternative alleles, remove '-hwe_pval 1e-5' form FILTERS
+# -doGeno 8 : genotype likelihood format setting for ngsLD; if you want to run PCA, use -doGeno 32 (but I recommend using ibsMat for all ordination work)
+
+FILTERS="-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -dosnpstat 1 -doHWE 1 -hwe_pval 1e-5 -sb_pval 1e-5 -hetbias_pval 1e-5 -skipTriallelic 1 -minInd 80 -snp_pval 1e-5 -minMaf 0.05"
+
+TODO="-doMajorMinor 1 -doMaf 1 -doCounts 1 -makeMatrix 1 -doIBS 1 -doCov 1 -doGeno 8 -doBcf 1 -doPost 1 -doGlf 2"
+
+# Starting angsd with -P the number of parallel processes. Funny but in many cases angsd runs faster on -P 1
+
+srun angsd -b bamsClones -GL 1 $FILTERS $TODO -P 1 -out mxMcavClones
+
+# how many SNPs?
+NSITES=`zcat mxMcavClones.mafs.gz | wc -l`
+echo $NSITES
+
+#scp the ibs matrix to identify clones
+
+################################################################################
+mkdir mcavBamsNoClones
+srun cp ./mcavBams/*bam* ./mcavBamsNoClones
+
+##Remove technical replicates and any natural clones, picked sample with the highest coverage to retain
+#You should have 97 files
+################################################################################
+mkdir mcavAngsdNoClones
+srun cp ./mcavBamsNoClones/*bam* ./mcavAngsdNoClones
+
+# set minInd to 75% of your total number of bams
+
+FILTERS="-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -dosnpstat 1 -doHWE 1 -hwe_pval 1e-5 -sb_pval 1e-5 -hetbias_pval 1e-5 -skipTriallelic 1 -minInd 73 -snp_pval 1e-5 -minMaf 0.05"
+
+TODO="-doMajorMinor 1 -doMaf 1 -doCounts 1 -makeMatrix 1 -doIBS 1 -doCov 1 -doGeno 8 -doBcf 1 -doPost 1 -doGlf 2"
+
+srun angsd -b bamsNoClones -GL 1 $FILTERS $TODO -P 1 -out mxMcavNoClones
+
+# how many SNPs?
+NSITES=`zcat mxMcavNoClones.mafs.gz | wc -l`
+echo $NSITES
+
+
+# NgsAdmix for K from 2 to 11 : do not run if the dataset contains clones or genotyping replicates!
+for K in `seq 2 11` ;
+do
+NGSadmix -likes mxMcavNoClones.beagle.gz -K $K -P 10 -o mxMcavNoClones_k${K};
+done
+
+## Next, take the likelihood value from each run of NGSadmix and put them into a file that can be used with Clumpak to calculate the most likely K using the methods of Evanno et al. (2005).
+>ngsAdmix
+for R in {1..10}; do
+for K in {1..11}; do
+echo "NGSadmix -likes mxMcavNoClones.beagle.gz -K $K -P 10 -o mxMcavNoClones_k${K}_run$R" >> ngsAdmix;
+done;
+done
+
+launcher_creator.py -j ngsAdmix -n ngsAdmix -q shortq7 -N 3 -t 06:00:00
+
+sbatch ngsAdmix.slurm
+
+> logfile
+
+for log in *.log; do
+grep -Po 'like=\K[^ ]+' $log >> logfile;
+done
+
+#format for CLUMPAK in R
+R
+# you are now using R in the terminal
+logs <- as.data.frame(read.table("logfile"))
+logs$K <- c(rep("10", 10), rep("11", 10), rep("1", 10), rep("2", 10), rep("3", 10), rep("4", 10), rep("5", 10), rep("6", 10), rep("7", 10), rep("8", 10), rep("9", 10))
+write.table(logs[, c(2, 1)], "logfile_formatted", row.names = F, col.names = F, quote = F)      
+quit()
+
+# alternatively, to use real ADMIXTURE on called SNPs (requires plink and ADMIXTURE):
+mv mxMcavNoClones.bcf mxMcavNoClones.vcf
+cat mxMcavNoClones.vcf | sed 's/xpSc//g' >mxMcavNoClones_chr.vcf
+cat mxMcavNoClones_chr.vcf | sed 's/xfSc//g' >mxMcavNoClones_chr1.vcf
+cat mxMcavNoClones_chr1.vcf | sed 's/Sc//g' >mxMcavNoClones_chr2.vcf
+plink --vcf mxMcavNoClones_chr2.vcf --make-bed --allow-extra-chr --out mxMcavNoClones
+for K in `seq 1 11`; \
+do admixture --cv mxMcavNoClones.bed $K | tee mxMcavNoClonesAdmix_${K}.out; done
+
+grep -h CV mxMcavNoClonesAdmix*.out
+
+CV error (K=1): 0.48286
+CV error (K=2): 0.47085
+CV error (K=3): 0.47107
+CV error (K=4): 0.47461
+CV error (K=5): 0.49017
+CV error (K=6): 0.51627
+CV error (K=7): 0.54396
+CV error (K=8): 0.57667
+CV error (K=9): 0.60988
+CV error (K=10): 0.64002
+CV error (K=11): 0.67720
+################################################################################
+mkdir bayescan
+cd bayescan
+srun cp ../macvANGSDNoClones/mxMcavNoClones.vcf.gz . #Note do not use the renamed version, pgdspider has a tough time parsing the samples into pops when you do
+srun gunzip mxMcavNoClones.vcf.gz
+
+#scp bspops to koko
+
+echo "############
+# VCF Parser questions
+PARSER_FORMAT=VCF
+# Do you want to include a file with population definitions?
+VCF_PARSER_POP_QUESTION=true
+# Only input following regions (refSeqName:start:end, multiple regions: whitespace separated):
+VCF_PARSER_REGION_QUESTION=
+# What is the ploidy of the data?
+VCF_PARSER_PLOIDY_QUESTION=DIPLOID
+# Only output following individuals (ind1, ind2, ind4, ...):
+VCF_PARSER_IND_QUESTION=
+# Output genotypes as missing if the read depth of a position for the sample is below:
+VCF_PARSER_READ_QUESTION=
+# Take most likely genotype if "PL" or "GL" is given in the genotype field?
+VCF_PARSER_PL_QUESTION=true
+# Do you want to exclude loci with only missing data?
+VCF_PARSER_EXC_MISSING_LOCI_QUESTION=false
+# Select population definition file:
+VCF_PARSER_POP_FILE_QUESTION=./bspops
+# Only output SNPs with a phred-scaled quality of at least:
+VCF_PARSER_QUAL_QUESTION=
+# Do you want to include non-polymorphic SNPs?
+VCF_PARSER_MONOMORPHIC_QUESTION=false
+# Output genotypes as missing if the phred-scale genotype quality is below:
+VCF_PARSER_GTQUAL_QUESTION=
+# GESTE / BayeScan Writer questions
+WRITER_FORMAT=GESTE_BAYE_SCAN
+# Specify which data type should be included in the GESTE / BayeScan file  (GESTE / BayeScan can only analyze one data type per file):
+GESTE_BAYE_SCAN_WRITER_DATA_TYPE_QUESTION=SNP
+############" >vcf2bayescan.spid
+
+srun java -Xmx1024m -Xms512m -jar ~/bin/PGDSpider_2.0.7.1/PGDSpider2-cli.jar -inputfile mxMcavNoClones.vcf -outputfile mxMcav.bayescan -spid vcf2bayescan.spid
+
+# launching bayescan (this might take 12-24 hours)
+srun bayescan mxMcav.bayescan -threads=20
+
+removeBayescanOutliers.pl bayescan=mxMcav.baye_fst.txt vcf=mxMcavNoClones.vcf FDR=0.1 mode=extract > mxVcfOutliers.vcf
+
+srun sed 's/^##fileformat=VCFv4.2(angsd version)/##fileformat=VCFv4.2/' mxVcfOutliers.vcf > mx1VcfOutliers.vcf
+
+removeBayescanOutliers.pl bayescan=mxMcav.baye_fst.txt vcf=mxMcavNoClones.vcf FDR=0.1 mode=delete > mxVcfNeutral.vcf
+
+##Bayescenv
+scp asturm2017@koko-login.hpc.fau.edu:/mnt/beegfs/home/asturm2017/2bRAD/mexico/concatRun/bayescan/mxMcav.bayescan /Users/student/bin/bayescenv-1.1/bin/mac64
+
+cd /Users/student/bin/bayescenv-1.1/bin/mac64
+
+nano mxDepth
+#10 15 25 35 10 15 25 35
+
+./bayescenv mxMcav.bayescan -env mxDepth
+################################################################################

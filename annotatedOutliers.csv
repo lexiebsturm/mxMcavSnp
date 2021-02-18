@@ -1,0 +1,20 @@
+,locus,chromo,position,start,end,gene,cog,protein,qval,sig
+1,3,Sc0000000,81711,63864,84451,Mcavernosa06192,Q,ABC-2 type transporter,0.011717,**
+2,293,Sc0000006,54778,53529,60079,Mcavernosa07104,D,anaphase promoting complex subunit 13,0.064943,*
+3,433,Sc0000009,675943,662675,681313,Mcavernosa00359,P,Pyruvate formate lyase,0.082274,*
+4,1734,Sc0000053,109224,104547,122109,Mcavernosa24876,U,"Trafficking protein, kinesin binding",0.037367,**
+5,2749,Sc0000100,554651,553782,558651,Mcavernosa31621,T,ankyrin repeat,0.0047009,***
+6,2749,Sc0000100,554651,547946,555797,Mcavernosa31620,J,eukaryotic translation Elongation Factor 1,0.0047009,***
+7,4292,Sc0000197,167319,163342,175566,Mcavernosa08403,"P, T",polycystic kidney disease 1-like 2,0.0857,*
+8,4293,Sc0000197,217939,208402,237063,Mcavernosa08405,"P, T",polycystic kidney disease 1-like 2,0.018504,**
+9,4740,Sc0000231,121766,115774,144710,Mcavernosa14983,U,"CD74 molecule, major histocompatibility complex, class II invariant chain",0.025155,**
+10,5212,Sc0000269,299359,295213,319837,Mcavernosa31831,T,T-cell lymphoma invasion and metastasis,0.021041,**
+11,5659,Sc0000319,212148,211675,224799,Mcavernosa19133,U,Pituitary tumor-transforming 1 interacting protein,0.072038,*
+12,5659,Sc0000319,212148,202278,213594,Mcavernosa19132,S,chromosome 7 open reading frame 72,0.072038,*
+13,6124,Sc0000373,267983,265146,273118,Mcavernosa22453,S,Putative cyclase,0.061058,*
+14,6157,Sc0000380,126554,118583,132829,Mcavernosa22658,S,Tropomyosin,0.057011,*
+15,6982,Sc0000507,199324,195459,204952,Mcavernosa21123,O,Spastic ataxia of Charlevoix-Saguenay (Sacsin),0.078957,*
+16,7337,Sc0000576,16335,15224,20864,Mcavernosa26995,F,DNA/RNA non-specific endonuclease,0.050105,*
+17,7530,Sc0000610,22184,10409,22301,Mcavernosa20585,S,Hermansky-Pudlak syndrome 3,0.075438,*
+18,8970,xfSc0000011,176070,171959,180279,Mcavernosa11447,Z,"Tubulin is the major constituent of microtubules. It binds two moles of GTP, one at an exchangeable site on the beta chain and one at a non-exchangeable site on the alpha chain (By similarity)",0.013428,**
+19,9239,xfSc0000060,65732,38913,74213,Mcavernosa23257,O,Complement component,0.046998,**
