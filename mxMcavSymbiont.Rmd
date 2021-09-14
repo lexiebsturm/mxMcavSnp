@@ -1,0 +1,650 @@
+---
+title: "Depth-dependent genetic structuring of *Montastraea cavernosa* and their Symbiodiniaceae communities varies between Alacranes and Bajos del Norte reefs, Campeche Bank, Mexico"
+author: "Alexis Sturm"
+date: "8/31/2021"
+output: 
+html_document:
+    theme: flatly
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, fig.align = 'left')
+#knitr::opts_knit$set(root.dir = '../revisedData')
+options(width = 88, scipen = 4)
+```
+
+***
+
+# About this document
+***  
+All analyses were performed in R version 3.6.2.
+This is the code that accompanies the publication *Depth-dependent genetic structuring of Montastraea cavernosa and their Symbiodiniaceae communities varies between Alacranes and Bajos del Norte reefs, Campeche Bank, Mexico*. Here you will find all the code to repeat the statistical analyses performed in R and the figures created for the manuscript. The accompanying library preparation protocol and bioinformatic walkthrough can be found by clicking on the links.
+
+If you have any issues or questions about the code please feel free to send an email to lexie.sturm@gmail.com.
+
+***
+
+# Basic setup of R environment
+***
+## Loading required packages
+Make sure to set the working directory:
+`setwd("~/path/to/directory/with/data")`
+
+```{r, set working directory}
+setwd('/Users/student/Documents/GitHub/mxMcavSnp/')
+```
+
+For the following analyses we will require the use of multiple different R packages, we can use the package *pacman* to quickly load them.
+```{r, load packages, include = TRUE, message = FALSE, warning = FALSE, results = 'hide'}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load("adegenet", "dendextend", "flextable", "gdata", "ggdendro", "hierfstat", "Imap", "kableExtra", 
+               "paletteer", "patchwork", "officer", "poppr", "RColorBrewer", "reshape2", "StAMPP", 
+               "tidyverse", "vcfR", "vegan", "WGCNA", "ggnewscale", "rnaturalearth", "sf", "ggspatial", 
+               "cowplot", "marmap", "dplyr", "edgeR", "MCMC.OTU", "pairwiseAdonis", "distGeo")
+
+pacman::p_load_gh("eliocamp/ggnewscale", "ropensci/rnaturalearthhires")
+```
+
+# Figures and analyses
+##Sampling Map
+```{r, sampling map}
+mxSites = read.csv("mxSampleSites.csv", header = TRUE)
+mxSites$depthZone=as.factor(mxSites$depthZone)
+# coerce to sf object
+
+mxSites1 <- st_as_sf(x = mxSites, coords = c('lon', 'lat'), crs = 4326)
+mxSitesDist=st_distance(mxSites1)
+mxSitesDistKm=mxSitesDist/1000
+rownames(mxSitesDistKm) <-c(mxSites$reef)
+colnames(mxSitesDistKm) <-c(mxSites$reef)
+#mxSites$depth = factor(mxSites$depth, levels = levels(mxSites$depth)[c(2,1)])
+#mxSites$reef = factor(mxSites$reef, levels = levels(mxSites$reef)[c(1, 7, 8, 3, 6, 2, 5, 4, 11, 10, 9, 12)])
+mxReefs = mxSites %>% group_by(reef) %>% summarize(lat = mean(lat), lon = mean(lon))
+#mxReefs$depthShape=c("Mesophotic", "Shallow", "Shallow", "Shallow", "Shallow", "Shallow", "Shallow", "Shallow", "Paired", "Paired", "Paired", "Paired")
+#mxReefs$depthShape=as.factor(mxReefs$depthShape)
+#mxReefs$depthShape = factor(mxReefs$depthShape, levels = levels(mxReefs$depthShape)[c(2,3,1)])
+gomCountries = st_as_sf(ne_countries(country = c("United States of America", "Cuba", "Mexico", "The Bahamas", "Belize", "Guatemala", "Cayman Islands"), scale = "Large"))
+
+
+gom5.100Bathy=st_read("/Users/student/Documents/GitHub/mxMcavSnp/gom_5-100m/w98e78n31s18_isobath_5-100m.shp") %>% st_transform(54030)
+gom200Bathy=st_read("/Users/student/Documents/GitHub/mxMcavSnp/GOM_isobath_100-1000m/w98e78n31s18_isobath_100-1000m.shp") %>%
+filter(CONTOUR == "-200") %>% st_transform(54030)
+
+mxPal=c("seagreen3", "blue")
+
+mxMapA = ggplot() +
+  geom_sf(data = gomCountries, fill = "white", size = 0.25) +
+  geom_sf(data = gom200Bathy, color = "red") +
+  geom_point(data = mxSites, aes(x = lon, y = lat, shape = depthZone), size = 0) +
+  geom_point(data = mxReefs, aes(x = lon, y = lat, fill = reef), size = 3, shape=21) +
+  scale_fill_manual(values = mxPal, name = "Site") +
+  scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+  #scale_color_manual(values = c("blue"), labels = c("MPA Boundaries")) + #name = "Boundaries",
+  coord_sf(xlim = c(-103, -80), ylim = c(18.5, 30)) +
+  scale_x_continuous(breaks = c(seq(-103, -80, by = 2))) +
+  scale_y_continuous(breaks = c(seq(18.5, 30, by = 2))) +
+  #geom_rect(aes(xmin = -89.8, xmax = -89.6, ymin = 22.35, ymax = 22.6), color = "black", fill = NA, size = 0.4) +
+  #geom_rect(aes(xmin = -88.74, xmax = -88.68, ymin = 23.24, ymax = 23.32), color = "black", fill = NA, size = 0.4) +
+  annotation_scale(location = "bl") +
+  annotation_north_arrow(location = "tr", which_north = "true", style = north_arrow_minimal()) +
+  guides(fill = guide_legend(override.aes = list(shape = 22, color = NA, size = 4), ncol = 2, order = 1), shape = guide_legend(override.aes = list(size = 3), order = 2)) +
+  #guides(fill = guide_legend(override.aes = list(shape = 21, size = 4), order = 1))+ #,
+         #shape = guide_legend(order=2),
+         #color = guide_legend(title=NULL, order = 3))+ #override.aes = list(fill=NA),
+  theme_bw() +
+  theme(plot.title = element_text(size = 9) ,
+        panel.background = element_rect(fill = "aliceblue"),
+        plot.background = element_blank(),
+        axis.title = element_blank(),
+        legend.position = "bottom")
+
+#mxMapA
+
+#ggsave("mxMapNoInset.tiff", plot = mxMapA, width = 30, height = 20, units = "cm", dpi = 600)
+set.seed(224)
+inset = ggplot() +
+  geom_segment(aes(x = -103, xend = -80, y = 18.5, yend = 30), color = "gray92", size = .55) +
+  geom_sf(data = gomCountries, fill = "white", size = 0.25) +
+  geom_point(data = subset(mxSites, subset = mxSites$reef == "Alacranes"), aes(x = lon, y = lat, fill = reef, shape=depthZone), size = 3, position=position_jitter(width=0.01, height=0.01)) +
+  geom_point(data = subset(mxSites, subset = mxSites$reef == "Bajos del Norte"), aes(x = lon, y = lat, fill = reef, shape=depthZone), size = 3, position=position_jitter(width=0.002, height=0.002)) +
+  scale_fill_manual(values = mxPal, name = "Reef") +
+  scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+  #geom_jitter()+
+  #geom_sf(data = gom5.100Bathy, color = "gray") +
+  guides(fill = guide_legend(override.aes = list(shape = 21, color = NA, size = 4))) +
+  theme_bw() +
+  theme(legend.title = element_text(size = 9, face = "bold"),
+        axis.title = element_blank(),
+        panel.background = element_rect(fill = "aliceblue"),
+        legend.text = element_text(size = 9),
+        legend.position = "none",
+        legend.direction = "vertical",
+        legend.box = "vertical",
+        panel.grid=element_blank(),
+        rect = element_blank())
+
+# inset
+
+alacranes = inset+
+  ggtitle("Alacranes") +
+  # geom_sf(data = gomCountries, fill = "white", size = 0.25) +
+  annotation_scale(location = "bl") +
+  coord_sf(xlim = c(-89.8, -89.6), ylim = c(22.35, 22.6)) +
+  scale_x_continuous(breaks = c(seq(-89.8, -89.6, by = .1))) +
+  scale_y_continuous(breaks = c(seq(22.35, 22.6, by = .1)))+
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.background=element_blank(),
+        panel.border = element_rect(size = 1))
+
+# alacranes
+
+bajosDelNorte = inset +
+  ggtitle("Bajos del Norte") +
+  annotation_scale(location = "bl") +
+  coord_sf(xlim = c(-88.74, -88.68), ylim = c(23.24, 23.32)) +
+  scale_x_continuous(breaks = c(seq(-88.74, -88.68, by = .1))) +
+  scale_y_continuous(breaks = c(seq(23.24, 23.32, by = .1)))+
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.background=element_blank(),
+        plot.title = element_text(vjust=-6.5, hjust=0.5),
+        panel.border = element_rect(size = 1))
+
+#bajosDelNorte
+
+mxMap = ggdraw() +
+  draw_plot(mxMapA) +
+  #draw_plot(inset) +
+  draw_plot(alacranes, x = 0.01, y = 0.25, width = 0.3, height = 0.3) +
+  draw_plot(bajosDelNorte, x = 0.67, y = 0.25, width = 0.3, height = 0.3)
+
+
+mxMap
+
+ggsave("./figures/fig1.tiff", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 600)
+```
+
+##Host PCoA with IBS
+```{r, Host PCoA with IBS}
+snpMa = as.matrix(read.table("mxMcavNoClones.ibsMat"))
+mxMds = cmdscale(snpMa, eig = TRUE, x.ret = TRUE)
+
+# Determine percent variation captured on each axis
+# Calculate the eigenvalues so later we can figure out % variation shown on each Principal Coordinate
+mxSnpPcoaVar = round(mxMds$eig/sum(mxMds$eig)*100, 1)
+mxSnpPcoaVar
+
+# Format data to plot
+mxSnpPcoaValues = mxMds$points
+mxSnpPcoaValues
+
+snpI2P = read.csv("mxInds2PopsNoClones.csv") # 2-column tab-delimited table of individual assignments to populations; must be in the same order as samples in the bam list or vcf file.
+row.names(snpI2P) = snpI2P[,1]
+mxSnpPcoaValues=cbind(snpI2P, mxSnpPcoaValues)
+mxSnpPcoaValues =as.data.frame(mxSnpPcoaValues, sample = rownames(mxSnpPcoaValues))
+colnames(mxSnpPcoaValues)[5] <- "PCo1"
+colnames(mxSnpPcoaValues)[6] <- "PCo2"
+mxSnpPcoaValues
+
+snpPCoA = merge(mxSnpPcoaValues, aggregate(cbind(mean.x=PCo1,mean.y=PCo2)~popDepth, mxSnpPcoaValues, mean), by="popDepth")
+
+snpPCoA$depthZoneM=as.factor(snpPCoA$depthZoneM)
+#snpPCoA$depthZone = factor(snpPCoA$depthZone, levels(snpPCoA$depthZone)[c(2,1)])
+
+# SNP PCoA biplot
+mxSnpPcoaPlotA = ggplot(snpPCoA, aes(x = PCo1, y = PCo2, color = site, fill = site, shape = depthZoneM, linetype = depthZoneM)) +
+  geom_hline(yintercept = 0, color = "gray90", size = 0.5) +
+  geom_vline(xintercept = 0, color = "gray90", size = 0.5) +
+  #stat_ellipse(data = subset(snpPCoA, type = "n", geom = "polygon")) + #ellipse
+  #scale_linetype_manual(values=c(1,2,4,3), name = "Depth Zone")+
+  geom_point(aes(x = PCo1, y = PCo2, shape = depthZoneM), size = 3, alpha = 0.3, show.legend = FALSE, guide=FALSE) + #individual's points indicated by circles
+  scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+  geom_point(aes(x = mean.x, y = mean.y, shape = depthZoneM), size = 5, color = "black") + #population centroids indicated by triangles
+  #scale_fill_paletteer_d("LaCroixColoR::PassionFruit", breaks=c("Alacranes", "Bajos del Norte"), name= "Population")+
+  scale_fill_manual(values = c("seagreen3", "blue"), name= "Population")+
+  #scale_color_paletteer_d("LaCroixColoR::PassionFruit", breaks=c("Alacranes", "Bajos del Norte"), name= "Population", guide=FALSE) +
+  scale_color_manual(values = c("seagreen3", "blue"), name= "Population")+
+  xlab(paste ("PCo 1 (", mxSnpPcoaVar[1],"%)", sep = "")) + #Prints percent variation explained by first axis
+  ylab(paste ("PCo 2 (", mxSnpPcoaVar[2],"%)", sep = "")) + #Prints percent variation explained by second axis
+  guides(shape = guide_legend(order = 2), fill = guide_legend(override.aes = list(shape = 22, size = 4, color = NA), order = 1))+ #linetype = guide_legend(order = 3),
+  theme_bw()
+
+mxSnpPcoaPlot = mxSnpPcoaPlotA +
+  theme(axis.title.x = element_text(color = "black", size = 10),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank(),
+        axis.title.y = element_text(color = "black", size = 10),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank(),
+        legend.position = "left",
+        panel.border = element_rect(color = "black", size = 1.2),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+
+mxSnpPcoaPlot
+
+ggsave("./figures/fig2.tiff", plot = mxSnpPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+```
+
+## AMOVA and Pairwise Fst
+```{r, AMOVA and Pairwise Fst, fig.width = 13.4, fig.height = 5.9}
+mxVcf = read.vcfR("mxMcavNoClones.bcf")
+mxGenlightPopDepth = vcfR2genlight(mxVcf, n.cores = 2) # Converts the vcf file into a file format that poppr uses the "genlight" format
+locNames(mxGenlightPopDepth) = paste(mxVcf@fix[,1],mxVcf@fix[,2],sep="_")
+popData = read.csv("mxInds2PopsNoClones.csv") # Reads in population data for each sample
+
+strata(mxGenlightPopDepth) = data.frame(popData)
+setPop(mxGenlightPopDepth) = ~popDepth
+amova <- poppr.amova(mxGenlightPopDepth, ~popDepth) #Runs AMOVA
+amova
+set.seed(1999)
+amovasignif <- randtest(amova, nrepet = 99) #Calculates significance levels of the AMOVA with 99 permutations
+amovasignif
+plot(amovasignif)
+
+#mxGenlightPopDepth$pop=as.factor(mxGenlightPopDepth$pop)
+#mxGenlightPopDepth$pop = factor(mxGenlightPopDepth$pop, levels(mxGenlightPopDepth$pop)[c(4,3,2,1,5,6,8,7)])
+
+set.seed(694)
+mx.fst <- stamppFst(mxGenlightPopDepth, nboots = 99, percent = 95, nclusters = 4) #99 permutations
+mx.fst$Fsts
+mx.fst$Pvalues
+
+# pca.1 <- glPca(mxGenlightPopDepth, nf=300, n.cores=1) 
+# 
+# # proportion of explained variance by first three axes
+# pca.1$eig[1]/sum(pca.1$eig) # proportion of variation explained by 1st axis
+# pca.1$eig[2]/sum(pca.1$eig) # proportion of variation explained by 2nd axis 
+# pca.1$eig[3]/sum(pca.1$eig) # proportion of variation explained by 3rd axis
+# 
+# #####K-Means Clustering and DAPC
+# grp <- find.clusters(mxGenlightPopDepth, max.n.clust=11, glPca = pca.1, perc.pca = 100, n.iter=1e6, n.start=1000) 
+# 
+
+pop.order <- c("Alacranes-10", "Bajos del Norte-10", "Alacranes-15", "Bajos del Norte-15", "Alacranes-25", "Bajos del Norte-25","Alacranes-35", "Bajos del Norte-35")
+
+# reads in fst matrix
+snpFstMa <- as.matrix(mx.fst$Fsts)
+upperTriangle(snpFstMa, byrow=TRUE) <- lowerTriangle(snpFstMa)
+snpFstMa <- snpFstMa[,pop.order] %>%
+  .[pop.order,]
+snpFstMa[upper.tri(snpFstMa)] <- NA
+snpFstMa <- as.data.frame(snpFstMa)
+
+snpFstMa$Pop = factor(row.names(snpFstMa), levels = unique(pop.order))
+
+snpQMa <- as.matrix(mx.fst$Pvalues)
+upperTriangle(snpQMa, byrow=TRUE) <- lowerTriangle(snpQMa)
+snpQMa <- snpQMa[,pop.order] %>%
+  .[pop.order,]
+snpQMa[upper.tri(snpQMa)] <- NA
+snpQMa <- as.data.frame(snpQMa)
+snpQMa$Pop = factor(row.names(snpQMa), levels = unique(pop.order))
+
+snpFstMa$Pop = factor(row.names(snpFstMa), levels = unique(pop.order))
+snpFst = melt(snpFstMa, id.vars = "Pop", value.name = "Fst", variable.name = "Pop2", na.rm = TRUE)
+snpFst = snpFst[snpFst$Pop != snpFst$Pop2,]
+snpFst$Fst = round(snpFst$Fst, 3)
+snpFst = snpFst %>% mutate(Fst = replace(Fst, Fst < 0, 0))
+head(snpFst)
+
+snpQ = melt(snpQMa, id.vars = "Pop", value.name = "Pval", variable.name = "Pop2", na.rm = TRUE)
+snpQ = snpQ[snpQ$Pop != snpQ$Pop2,]
+snpQ$Qval = p.adjust(snpQ$Pval, method = "BH")
+head(snpQ)
+
+snpHeatmapA = ggplot(data = snpFst, aes(Pop, Pop2, fill = Fst))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "white", high = "red", midpoint = 0, limit = c(0, 0.08),
+                       space = "Lab", name = expression(paste(italic("F")[ST])))+
+  geom_text(data = snpFst, aes(Pop, Pop2, label = Fst), color = ifelse(snpQ$Qval <= 0.05,"black", "darkgrey"), size = ifelse(snpQ$Qval < 0.05, 6, 5), fontface = ifelse(snpQ$Qval <= 0.05, "bold", "plain")) +
+  guides(fill=guide_colorbar(barwidth = 1, barheight = 12, title.position = "top", title.hjust = 0.5))+                     
+  scale_y_discrete(position = "right", labels = c("Alacranes-10 m", "Bajos del Norte-10 m","Alacranes-15 m", "Bajos del Norte-15 m", "Alacranes-25 m", "Bajos del Norte-25 m","Alacranes-35 m"))+
+  scale_x_discrete(labels = str_wrap(c("Bajos del Norte-10 m", "Alacranes-15 m", "Bajos del Norte-15 m", "Alacranes-25 m", "Bajos del Norte-25 m","Alacranes-35 m", "Bajos del Norte-35 m"), width = 4)) +
+  #ggtitle("   SNP") +
+  theme_minimal()
+
+snpHeatmap = snpHeatmapA + theme(
+  axis.text.x = element_text(vjust = 1, size = 16, hjust = 0.5, color = "black"),
+  axis.text.y = element_text(size = 16, color = "black"),
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.position = "right",
+  legend.direction = "vertical",
+  legend.title = element_text(size = 16),
+  legend.text = element_text(size = 14),
+  plot.title = element_text(size = 16)
+)
+
+snpHeatmap
+
+ggsave("./figures/fig3.tiff", plot = snpHeatmap, width = 30, height = 15, units = "cm", dpi = 300)
+```
+
+## NGSAdmix Plot
+```{r, ADMIXTURE}
+paletteer_d("NineteenEightyR::miami2")
+#colPal2=c("#FFFFCC", "#41B6C4")
+colPal2=c("#3FB8AFFF", "#DAD8A7FF")
+mxNgsAdmix <- read.csv("mxMcavNoClones_k2k3.csv") %>% arrange(site, depthZoneM, -cluster2.2)
+# mxK2$sample = factor(mxK2$sample, levels = mxK2$sample[order(-mxK2$cluster2)])
+sampleCounts = plyr::count(mxNgsAdmix, c('site','depthZoneM'))
+meltedList = reshape2::melt(lapply(sampleCounts$freq,function(x){c(1:x)}))
+
+mxNgsAdmix$barPlotOrder = meltedList$value
+mxNgsAdmix$depthZoneM=as.factor(mxNgsAdmix$depthZoneM)
+mdat = melt(mxNgsAdmix, id.vars=c("sample", "site", "depthZoneM", "barPlotOrder"), variable.name="Ancestry", value.name="Fraction")
+#mdat2$site=as.factor(mdat2$site)
+mdat$depthZoneM=as.factor(mdat$depthZoneM)
+levels(mdat$depthZoneM)
+levels(mdat$depthZoneM) = c("10 m", "15 m", "25 m", "35 m")
+
+p2 = ggplot(data = subset(mdat, subset = mdat$Ancestry %in% c("cluster2.1", "cluster2.2")), aes(x=barPlotOrder, y=Fraction, fill=Ancestry, order=barPlotOrder)) +
+  geom_bar(stat="identity", position="fill", width=1, colour="grey25") +
+  #facet_grid(.~site, scales = "free", switch = "x", space = "free") +
+  facet_grid(depthZoneM ~ site, scales = "free") + #faceting plots by Depth and Site
+  labs(x = "Population", y = "Ancestry") +
+  ggtitle(expression(paste(italic("K"), "=2"))) +
+  theme(plot.title = element_text(size=40),
+        panel.grid=element_blank(),
+        panel.background=element_rect(fill=NA, colour="grey25"),
+        panel.spacing.x=grid:::unit(0, "lines"),
+        panel.border = element_rect(fill=NA,color="black", size=2, linetype="solid"),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        strip.background = element_rect(fill = "white", size = 0.9, color="black"),
+        strip.text.x = element_text(size = 30),
+        strip.text.y = element_blank(),
+        #strip.text=element_text(size=20, angle=90),
+        legend.key=element_blank(),
+        legend.position = "none",
+        legend.title = element_blank()) +
+  scale_x_discrete(expand=c(0, 0)) +
+  scale_y_continuous(expand=c(0, 0)) +
+  #scale_fill_manual(values = brewer.pal(name = "YlGnBu", n = 4), name = "Cluster") +
+  scale_fill_manual(values = colPal2, name = "Cluster") +
+  guides(fill=guide_legend(override.aes=list(colour=NULL)))
+p2
+
+###########
+#colPal3=c("#FFFFCC", "#41B6C4", "#225EA8")
+colPal3=c("#3FB8AFFF", "#DAD8A7FF", "#FF3D7FFF")
+# mxK3 <- read.csv("mxMcavNoClones_K3.csv") %>% arrange(pop, depthZoneM, -cluster2)
+# # mxK3$sample = factor(mxK3$sample, levels = mxK3$sample[order(-mxK3$cluster2)])
+# sampleCountsK3 = plyr::count(mxK3, c('pop','depthZoneM'))
+# meltedListK3 = reshape2::melt(lapply(sampleCountsK3$freq,function(x){c(1:x)}))
+# 
+# mxK3$barPlotOrderK3 = meltedListK3$value
+# mdat3 = melt(mxK3, id.vars=c("sample", "pop", "depthZoneM", "barPlotOrderK3"), variable.name="Ancestry", value.name="Fraction")
+# #mdat2$pop=as.factor(mdat3$pop)
+# mdat3$depthZoneM=as.factor(mdat3$depthZoneM)
+# levels(mdat3$depthZoneM)
+# levels(mdat3$depthZoneM) = c("10 m", "15 m", "25 m", "35 m")
+
+
+p3 = ggplot(data = subset(mdat, subset = mdat$Ancestry %in% c("cluster3.1", "cluster3.2", "cluster3.3")), aes(x=barPlotOrder, y=Fraction, fill=Ancestry, order=barPlotOrder)) +
+  geom_bar(stat="identity", position="fill", width=1, colour="grey25") +
+  #facet_grid(.~pop, scales = "free", switch = "x", space = "free") +
+  facet_grid(depthZoneM ~ site, scales = "free") + #faceting plots by Depth and Site
+  labs(x = "Population", y = "Ancestry") +
+  ggtitle(expression(paste(italic("K"), "=3"))) +
+  theme(plot.title = element_text(size=40),
+        panel.grid=element_blank(),
+        panel.background=element_rect(fill=NA, colour="grey25"),
+        panel.spacing.x=grid:::unit(0, "lines"),
+        panel.border = element_rect(fill=NA,color="black", size=2, linetype="solid"),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        strip.background = element_rect(fill = "white", size = 0.9, color="black"),
+        strip.text.x = element_text(size = 30),
+        strip.text.y = element_text(size = 30),
+        #strip.text=element_text(size=20, angle=90),
+        legend.key=element_blank(),
+        legend.position = "none",
+        legend.title = element_blank()) +
+  scale_x_discrete(expand=c(0, 0)) +
+  scale_y_continuous(expand=c(0, 0)) +
+  #scale_fill_manual(values = brewer.pal(name = "YlGnBu", n = 4), name = "Cluster") +
+  scale_fill_manual(values = colPal3, name = "Cluster") +
+  guides(fill=guide_legend(override.aes=list(colour=NULL)))
+p3
+
+combinedAdmix = (p2 | p3)
+combinedAdmix
+
+ggsave("./figures/fig4.tiff", plot = combinedAdmix, width = 70, height = 40, units = "cm", dpi = 300)
+```
+
+##ITS2-type Profiles
+```{r, its2BarPlot}
+its2Profs = read.csv("mxIts2ProfCounts.csv", header = TRUE, check.names = FALSE)
+head(its2Profs)
+
+its2Profs$depthZoneM = factor(its2Profs$depthZoneM, levels = c("10", "15", "25", "35"))
+levels(its2Profs$depthZoneM)
+
+its2Profs$site = factor(its2Profs$site, levels(its2Profs$site)[c(1,2)])
+its2Profs = its2Profs[order(its2Profs$site, its2Profs$depthZoneM), ]
+head(its2Profs)
+
+its2Profs = its2Profs %>% arrange(site, depthZoneM,
+                                  `G3b`,
+                                  `G3am`,
+                                  `C3/C3b`,
+                                  `C3-C3fc-C40g-C3b-C3an-C21-C3fd-C3s-C3bb`,
+                                  `C3an/C3-C21-C3bb`, 
+                                  `C3-C21-C3gu-C3gy-C3gw-C3gx-C3gv-C3b`, 
+                                  `C3-C3an-C3de-C21-C3bb-C3fc-C3b`,
+                                  `C3-C3de-C3bb-C21ae-C21-C3an-C3s`, 
+                                  `C3-C3fc-C21-C3b-C3an-C3fd-C3bb`, 
+                                  `C3-C3de-C21-C3bb-C3an-C21ae-C65b-C3s`, 
+                                  `C3-C21-C3an-C3fc-C3gz-C3b-C3bb`, 
+                                  `C3-C21-C3fc-C3an-C65b-C3b-C3bb`)  
+                      
+                      
+
+sampleCounts = plyr::count(its2Profs, c('site','depthZoneM'))
+meltedList = reshape2::melt(lapply(sampleCounts$freq,function(x){c(1:x)}))
+its2Profs$barPlotOrder = meltedList$value
+its2Profs=its2Profs[c(1,ncol(its2Profs),2:(ncol(its2Profs)-1))]
+
+colOrder2 = order(colSums(its2Profs[10:length(its2Profs[1,])]), decreasing = TRUE)+9 #Add the number of columns of metadata
+
+its2ProfsPerc = cbind(its2Profs[,c(1:9)],its2Profs[,c(colOrder2)])
+its2ProfsPerc$sum = apply(its2ProfsPerc[, c(10:length(its2ProfsPerc[1,]))], 1, function(x) {
+  sum(x, na.rm = T)
+})
+
+its2ProfsPerc = cbind(its2ProfsPerc[, c(1:9)], (its2ProfsPerc[, c(10:(ncol(its2ProfsPerc)-1))] 
+                                                        / its2ProfsPerc$sum))
+head(its2ProfsPerc)
+
+apply(its2ProfsPerc[, c(10:(ncol(its2ProfsPerc)))], 1, function(x) {
+  sum(x, na.rm = T)
+})
+
+head(its2ProfsPerc)
+
+
+gssProf = otuStack(its2ProfsPerc, count.columns = c(10:length(its2ProfsPerc[1, ])),
+                       condition.columns = c(1:9)) # remove summ rows
+gssProf = gssProf %>% filter(otu != "summ") %>% droplevels()
+
+levels(gssProf$otu)
+
+levels(gssProf$depthZoneM)
+levels(gssProf$depthZoneM) = c("10 m", "15 m", "25 m", "35 m")
+levels(gssProf$site)
+levels(gssProf$site) = c("Alacranes", "Bajos del Norte")
+levels(gssProf$depthZoneM)
+levels(gssProf$site)
+
+#gssProf %>% arrange(site, depthZoneM, count, otu)
+
+#Construct bar plot
+
+its2ProfsPlotA = ggplot(gssProf, aes(x = barPlotOrder, y = count, fill = factor(otu))) +
+  geom_bar(position = "stack", stat = "identity", color = "black", size = 0.25) + 
+  ylab("Proportion") +
+  scale_fill_paletteer_d("dichromat::Categorical.12")+
+  labs(fill = expression(paste(italic("ITS2"), " type profile"))) +
+  guides(fill = guide_legend(ncol = 2, reverse = FALSE)) +
+  facet_grid(depthZoneM ~ site, scales = "free_x") + #faceting plots by Depth and Site
+  theme_bw()
+
+its2ProfsPlot = its2ProfsPlotA +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.position = "bottom",
+        legend.title = element_text(color = "black", size = 12, hjust = 0.5, angle = 90),
+        legend.text = element_text(color = "black", size = 10),
+        legend.key = element_blank(),
+        legend.key.size = unit(0.75,"line"),
+        legend.background = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_rect(fill = "white"),
+        panel.grid=element_blank(),
+        plot.background = element_blank(),
+        strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12),
+        strip.background = element_rect(fill = "white", size = 0.9)
+  )
+
+its2ProfsPlot
+
+ggsave("./figures/fig5.tiff", plot = its2ProfsPlot, width = 8.5, height = 8.5, unit = "in", dpi = 600)
+```
+
+##ITS2 Stats Analysis
+```{r, itsStats}
+set.seed(694) #setting seed allows repetition of randomized processes
+
+its2dispS = betadisper(vegdist(its2Profs[, c(10:ncol(its2Profs))]), its2Profs$site)
+
+anova(its2dispS)
+#No significant effect of site on beta diversity
+
+set.seed(694)
+
+its2dispD = betadisper(vegdist(its2Profs[, c(10:ncol(its2Profs))]), its2Profs$depthZoneM)
+
+anova(its2dispD)
+#No significant effect of depth on beta diversity
+
+#PERMANOVA
+set.seed(694)
+its2Adonis = adonis(its2Profs[, c(10:ncol(its2Profs))] ~ depthZoneM * site, 
+                    data = its2Profs, permutations = 9999, method = "bray")
+
+its2Adonis
+
+set.seed(694)
+
+its2PWAdonis = pairwise.adonis(its2Profs[, c(10:ncol(its2Profs))],
+                               factors = its2Profs$depthZoneM,
+                               sim.method = "bray", p.adjust.m = "BH", perm = 9999)
+
+its2PWAdonis 
+```
+
+##ITS2 Symbiont PCoA with Bray Curtis
+```{r, itsPCoA}
+zooxProfs = its2Profs[,10:ncol(its2Profs)]
+zooxDist=vegdist(zooxProfs, method="bray")
+
+zooxMds = cmdscale(zooxDist, eig = TRUE, x.ret = TRUE)
+
+# Determine percent variation captured on each axis
+# Calculate the eigenvalues so later we can figure out % variation shown on each Principal Coordinate
+mxZooxPcoaVar = round(zooxMds$eig/sum(zooxMds$eig)*100, 1)
+mxZooxPcoaVar
+
+# Format data to plot
+mxZooxPcoaValues = zooxMds$points
+mxZooxPcoaValues
+
+zooxI2P = its2Profs[,1:9]
+row.names(zooxI2P) = zooxI2P[,1]
+mxZooxPcoaValues=cbind(zooxI2P, mxZooxPcoaValues)
+mxZooxPcoaValues =as.data.frame(mxZooxPcoaValues, sample = rownames(mxZooxPcoaValues))
+colnames(mxZooxPcoaValues)[10] <- "PCo1"
+colnames(mxZooxPcoaValues)[11] <- "PCo2"
+mxZooxPcoaValues$popDepth<- paste(mxZooxPcoaValues$site, "-", mxZooxPcoaValues$depthZoneM)
+head(mxZooxPcoaValues)
+
+zooxPCoA = merge(mxZooxPcoaValues, aggregate(cbind(mean.x=PCo1,mean.y=PCo2)~popDepth, mxZooxPcoaValues, mean), by="popDepth")
+
+#snpPCoA$depthZoneM=as.factor(snpPCoA$depthZoneM)
+#snpPCoA$depthZoneM = factor(snpPCoA$depthZoneM, levels(snpPCoA$depthZoneM)[c(2,1)])
+
+# SNP PCoA biplot
+mxZooxPcoaPlotA = ggplot(zooxPCoA, aes(x = PCo1, y = PCo2, color = site, fill = site, shape = depthZoneM, linetype = depthZoneM)) +
+  geom_hline(yintercept = 0, color = "gray90", size = 0.5) +
+  geom_vline(xintercept = 0, color = "gray90", size = 0.5) +
+  #stat_ellipse(data = subset(zooxPCoA, type = "n", geom = "polygon")) + #ellipse
+  scale_linetype_manual(values=c(1,2,4,3), name = "Depth Zone")+
+  geom_point(aes(x = PCo1, y = PCo2, shape = depthZoneM), size = 3, alpha = 0.3, show.legend = FALSE, guide=FALSE, position=position_jitter()) + #individual's points indicated by circles
+  #geom_jitter(alpha = 0.3, show.legend=FALSE)+
+  scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+  geom_point(aes(x = mean.x, y = mean.y, shape = depthZoneM), size = 5, color = "black") + #population centroids indicated by triangles
+  #scale_fill_paletteer_d("LaCroixColoR::PassionFruit", breaks=c("Alacranes", "Bajos del Norte"), name= "Population")+
+  scale_fill_manual(values = c("seagreen3", "blue"), name= "Population")+
+  #scale_color_paletteer_d("LaCroixColoR::PassionFruit", breaks=c("Alacranes", "Bajos del Norte"), name= "Population", guide=FALSE) +
+  scale_color_manual(values = c("seagreen3", "blue"), name= "Population")+
+  xlab(paste ("PCo 1 (", mxZooxPcoaVar[1],"%)", sep = "")) + #Prints percent variation explained by first axis
+  ylab(paste ("PCo 2 (", mxZooxPcoaVar[2],"%)", sep = "")) + #Prints percent variation explained by second axis
+  guides(shape = guide_legend(order = 2), fill = guide_legend(override.aes = list(shape = 22, size = 4, color = NA), order = 1))+ #linetype = guide_legend(order = 3),
+  theme_bw()
+
+mxZooxPcoaPlot = mxZooxPcoaPlotA +
+  theme(axis.title.x = element_text(color = "black", size = 10),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank(),
+        axis.title.y = element_text(color = "black", size = 10),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank(),
+        legend.position = "left",
+        panel.border = element_rect(color = "black", size = 1.2),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+
+mxZooxPcoaPlot
+
+ggsave("./figures/fig6.tiff", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+```

@@ -1,10 +1,16 @@
-﻿Location,Lat,Lon
-Alacranes,22.39622,-89.70578
-Alacranes,22.39592,-89.70556
-Alacranes,22.54583,-89.66012
-Alacranes,22.51127,-89.79737
-Alacranes,22.58667,-89.75208
-Alacranes,22.50925,-89.6278
-Bajos del Norte,23.30706,-88.71617
-Bajos del Norte,23.24744,-88.70778
-Bajos del Norte,23.28367,-88.71162
+﻿reef,depthZone,lat,lon
+Alacranes,35,22.39592,-89.70556
+Alacranes,10,22.39622,-89.70578
+Alacranes,15,22.39622,-89.70578
+Alacranes,25,22.39622,-89.70578
+Alacranes,25,22.50925,-89.6278
+Alacranes,10,22.51127,-89.79737
+Alacranes,15,22.51127,-89.79737
+Alacranes,10,22.54583,-89.66012
+Alacranes,15,22.54583,-89.66012
+Alacranes,25,22.58667,-89.75208
+Alacranes,35,22.58667,-89.75208
+Bajos del Norte,10,23.24744,-88.70778
+Bajos del Norte,15,23.24744,-88.70778
+Bajos del Norte,25,23.28367,-88.71162
+Bajos del Norte,35,23.30706,-88.71617

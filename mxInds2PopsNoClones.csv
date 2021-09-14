@@ -1,89 +1,89 @@
-﻿sample,pop,depthZone,popDepth
-001,Alacranes,25,Alacranes-25
-002,Alacranes,25,Alacranes-25
-003,Alacranes,25,Alacranes-25
-004,Alacranes,25,Alacranes-25
-005,Alacranes,25,Alacranes-25
-007,Alacranes,25,Alacranes-25
-008,Alacranes,15,Alacranes-15
-009,Alacranes,15,Alacranes-15
-010,Alacranes,15,Alacranes-15
-011,Alacranes,10,Alacranes-10
-012,Alacranes,10,Alacranes-10
-014,Alacranes,10,Alacranes-10
-015,Alacranes,10,Alacranes-10
-017,Alacranes,35,Alacranes-35
-018,Alacranes,35,Alacranes-35
-019,Alacranes,35,Alacranes-35
-020,Alacranes,35,Alacranes-35
-021,Alacranes,35,Alacranes-35
-022,Alacranes,35,Alacranes-35
-023,Alacranes,35,Alacranes-35
-024,Alacranes,35,Alacranes-35
-025,Alacranes,15,Alacranes-15
-026,Alacranes,15,Alacranes-15
-028,Alacranes,15,Alacranes-15
-030,Alacranes,15,Alacranes-15
-033,Alacranes,10,Alacranes-10
-034,Alacranes,10,Alacranes-10
-035,Alacranes,10,Alacranes-10
-036,Alacranes,10,Alacranes-10
-037,Alacranes,10,Alacranes-10
-038,Alacranes,10,Alacranes-10
-040,Alacranes,10,Alacranes-10
-041,Alacranes,10,Alacranes-10
-042,Alacranes,10,Alacranes-10
-043,Alacranes,10,Alacranes-10
-044,Alacranes,10,Alacranes-10
-045,Alacranes,10,Alacranes-10
-046,Alacranes,15,Alacranes-15
-047,Alacranes,15,Alacranes-15
-049,Alacranes,15,Alacranes-15
-050,Alacranes,15,Alacranes-15
-051,Alacranes,35,Alacranes-35
-052,Alacranes,35,Alacranes-35
-053,Alacranes,35,Alacranes-35
-054,Alacranes,35,Alacranes-35
-055,Alacranes,35,Alacranes-35
-056,Alacranes,35,Alacranes-35
-057,Alacranes,35,Alacranes-35
-058,Alacranes,25,Alacranes-25
-059,Alacranes,25,Alacranes-25
-060,Alacranes,25,Alacranes-25
-061,Alacranes,25,Alacranes-25
-062,Alacranes,25,Alacranes-25
-063,Alacranes,25,Alacranes-25
-064,Alacranes,25,Alacranes-25
-065,Alacranes,25,Alacranes-25
-066,Alacranes,25,Alacranes-25
-067,Bajos del Norte,35,Bajos del Norte-35
-068,Bajos del Norte,35,Bajos del Norte-35
-069,Bajos del Norte,35,Bajos del Norte-35
-070,Bajos del Norte,35,Bajos del Norte-35
-071,Bajos del Norte,35,Bajos del Norte-35
-072,Bajos del Norte,35,Bajos del Norte-35
-073,Bajos del Norte,35,Bajos del Norte-35
-074,Bajos del Norte,35,Bajos del Norte-35
-075,Bajos del Norte,35,Bajos del Norte-35
-076,Bajos del Norte,35,Bajos del Norte-35
-077,Bajos del Norte,35,Bajos del Norte-35
-078,Bajos del Norte,15,Bajos del Norte-15
-079,Bajos del Norte,15,Bajos del Norte-15
-080,Bajos del Norte,15,Bajos del Norte-15
-081,Bajos del Norte,15,Bajos del Norte-15
-082,Bajos del Norte,15,Bajos del Norte-15
-083,Bajos del Norte,15,Bajos del Norte-15
-084,Bajos del Norte,15,Bajos del Norte-15
-085,Bajos del Norte,15,Bajos del Norte-15
-087,Bajos del Norte,10,Bajos del Norte-10
-089,Bajos del Norte,10,Bajos del Norte-10
-090,Bajos del Norte,10,Bajos del Norte-10
-091,Bajos del Norte,10,Bajos del Norte-10
-092,Bajos del Norte,10,Bajos del Norte-10
-093,Bajos del Norte,10,Bajos del Norte-10
-095,Bajos del Norte,15,Bajos del Norte-15
-096,Bajos del Norte,15,Bajos del Norte-15
-097,Bajos del Norte,15,Bajos del Norte-15
+﻿sample,site,depthZoneM,popDepth
+1,Alacranes,25,Alacranes-25
+2,Alacranes,25,Alacranes-25
+3,Alacranes,25,Alacranes-25
+4,Alacranes,25,Alacranes-25
+5,Alacranes,25,Alacranes-25
+7,Alacranes,25,Alacranes-25
+8,Alacranes,15,Alacranes-15
+9,Alacranes,15,Alacranes-15
+10,Alacranes,15,Alacranes-15
+11,Alacranes,10,Alacranes-10
+12,Alacranes,10,Alacranes-10
+14,Alacranes,10,Alacranes-10
+15,Alacranes,10,Alacranes-10
+17,Alacranes,35,Alacranes-35
+18,Alacranes,35,Alacranes-35
+19,Alacranes,35,Alacranes-35
+20,Alacranes,35,Alacranes-35
+21,Alacranes,35,Alacranes-35
+22,Alacranes,35,Alacranes-35
+23,Alacranes,35,Alacranes-35
+24,Alacranes,35,Alacranes-35
+25,Alacranes,15,Alacranes-15
+26,Alacranes,15,Alacranes-15
+28,Alacranes,15,Alacranes-15
+30,Alacranes,15,Alacranes-15
+33,Alacranes,10,Alacranes-10
+34,Alacranes,10,Alacranes-10
+35,Alacranes,10,Alacranes-10
+36,Alacranes,10,Alacranes-10
+37,Alacranes,10,Alacranes-10
+38,Alacranes,10,Alacranes-10
+40,Alacranes,10,Alacranes-10
+41,Alacranes,10,Alacranes-10
+42,Alacranes,10,Alacranes-10
+43,Alacranes,10,Alacranes-10
+44,Alacranes,10,Alacranes-10
+45,Alacranes,10,Alacranes-10
+46,Alacranes,15,Alacranes-15
+47,Alacranes,15,Alacranes-15
+49,Alacranes,15,Alacranes-15
+50,Alacranes,15,Alacranes-15
+51,Alacranes,35,Alacranes-35
+52,Alacranes,35,Alacranes-35
+53,Alacranes,35,Alacranes-35
+54,Alacranes,35,Alacranes-35
+55,Alacranes,35,Alacranes-35
+56,Alacranes,35,Alacranes-35
+57,Alacranes,35,Alacranes-35
+58,Alacranes,25,Alacranes-25
+59,Alacranes,25,Alacranes-25
+60,Alacranes,25,Alacranes-25
+61,Alacranes,25,Alacranes-25
+62,Alacranes,25,Alacranes-25
+63,Alacranes,25,Alacranes-25
+64,Alacranes,25,Alacranes-25
+65,Alacranes,25,Alacranes-25
+66,Alacranes,25,Alacranes-25
+67,Bajos del Norte,35,Bajos del Norte-35
+68,Bajos del Norte,35,Bajos del Norte-35
+69,Bajos del Norte,35,Bajos del Norte-35
+70,Bajos del Norte,35,Bajos del Norte-35
+71,Bajos del Norte,35,Bajos del Norte-35
+72,Bajos del Norte,35,Bajos del Norte-35
+73,Bajos del Norte,35,Bajos del Norte-35
+74,Bajos del Norte,35,Bajos del Norte-35
+75,Bajos del Norte,35,Bajos del Norte-35
+76,Bajos del Norte,35,Bajos del Norte-35
+77,Bajos del Norte,35,Bajos del Norte-35
+78,Bajos del Norte,15,Bajos del Norte-15
+79,Bajos del Norte,15,Bajos del Norte-15
+80,Bajos del Norte,15,Bajos del Norte-15
+81,Bajos del Norte,15,Bajos del Norte-15
+82,Bajos del Norte,15,Bajos del Norte-15
+83,Bajos del Norte,15,Bajos del Norte-15
+84,Bajos del Norte,15,Bajos del Norte-15
+85,Bajos del Norte,15,Bajos del Norte-15
+87,Bajos del Norte,10,Bajos del Norte-10
+89,Bajos del Norte,10,Bajos del Norte-10
+90,Bajos del Norte,10,Bajos del Norte-10
+91,Bajos del Norte,10,Bajos del Norte-10
+92,Bajos del Norte,10,Bajos del Norte-10
+93,Bajos del Norte,10,Bajos del Norte-10
+95,Bajos del Norte,15,Bajos del Norte-15
+96,Bajos del Norte,15,Bajos del Norte-15
+97,Bajos del Norte,15,Bajos del Norte-15
 100,Bajos del Norte,15,Bajos del Norte-15
 101,Bajos del Norte,10,Bajos del Norte-10
 103,Bajos del Norte,10,Bajos del Norte-10

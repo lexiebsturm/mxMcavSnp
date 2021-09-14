@@ -1,5 +1,8 @@
 #####Note Libraries were prepared twice and sequenced spearately, the first run JA20232 yielded few reads and the second run JA20302 was much better (see separate directories for raw reads), quality control was conducted on both sets of samples and angsd was run on all the files to ensure that run did not have a major effect (see mergedRun). Samples that were sequenced in both runs still clustered tightly together suggesting that run did not have much of an effect on sequencing. We then merged all the files together, concatenating any samples that were sequenced across both runns and collating the rest to have the most complete dataset possible
 
+#Unzip all raw fastq.gz files
+srun gunzip *.gz
+srun perl countreads_raw.pl #ensure the file name in the fastq files
 
 mkdir concatRun
 cd concatRun
@@ -12,6 +15,9 @@ srun cp ~/2bRAD/mexico/JA20232/highQualityReads/*.trim .
 ##Open concatenatedFiles text file to see how files were concatenated and renamed
 ##There should be 106 files in total
 
+#Count reads following trimming and filtering
+srun perl countreads_raw.pl #ensure the file name in the trim files
+
 ################################################################################
 mkdir sams
 srun cp ./catHighQuality/*.trim ./sams
@@ -20,44 +26,59 @@ srun cp ./catHighQuality/*.trim ./sams
 
 cd sams
 
-GENOME_FASTA=/home/asturm2017/MCAVgenome/mcavZooxConcatGenomes/mcavZooxConcatGenomes.fasta
-
 # mapping with --local option, enables clipping of mismatching ends (guards against deletions near ends of RAD tags)
+#First align all high-quality reads to the zoox genomes
 
-2bRAD_bowtie2_launch.pl '\.trim$' /home/asturm2017/MCAVgenome/mcavZooxConcatGenomes/mcavZooxConcatGenomes.fasta > maps #Execute all commands in maps
+mkdir unaligned
+mkdir zoox
 
->alignmentRates
-for F in `ls *trim`; do
-M=`grep -E '^[ATGCN]+$' $F | wc -l | grep -f - maps.e* -A 4 | tail -1 | perl -pe 's/maps\.e\d+-|% overall alignment rate//g'` ;
-echo "$F.sam $M">>alignmentRates;
-done
+2bRAD_bowtie2_launcher_ryan.py -f trim -g ~/genomes/symbiontGenomes/singleChromo/concatZooxGenomes.fasta.gz --split -a zoox -u unal --undir ./unaligned --aldir ./zoox -n maps --launcher -e asturm2017@fau.edu
 
+#What this will do is align all your high-quality reads to a concatenated zoox genome. Then will output 3 file types.
+#In the working directory will output SAMs files with only reads that aligned to the Zoox genomes
+#In the unaligned directory you will have fastq files of reads that did not align to the zoox genomes, copy these over to the mcavSams directory and align to the MCAV genome
+
+cd zoox
+mkdir dualAligned
+mkdir zooxOnly
+
+2bRAD_bowtie2_launcher_ryan.py -f trim.zoox -g ~/genomes/Mcav_genome/Mcavernosa_July2018.fasta --split -a dual -u zooxOnly --undir ./zooxOnly --aldir ./dualAligned -n maps --launcher -e asturm2017@fau.edu
+sbatch maps.slurm
+
+#In the zoox directory you will have fastq files that aligned to the zoox genomes, realign back to the MCAV genome and again split these reads up into aligned and unaligned. In this case only used the unaligned reads because then you will get rid of any potential dual-aligned reads to both MCAV and algal symbiont.
+
+cd zooxOnly
+2bRAD_bowtie2_launcher_ryan.py -f trim.zoox.zooxOnly -g ~/genomes/symbiontGenomes/singleChromo/concatZooxGenomes.fasta.gz -n zooxOnlyMaps --launcher -e asturm2017@fau.edu
+sbatch zooxOnlyMaps.slurm
+
+#This makes zooxOnly Sams
 ################################################################################
 mkdir mcavSams
-srun cp ./sams/*.sam ./mcavSams
+srun cp ./sams/unaligned/*.unal ./mcavSams
 
-#Re-write sams files without any reads aligning to algal symbiont genomes
+2bRAD_bowtie2_launcher_ryan.py -f unal -g ~/genomes/Mcav_genome/Mcavernosa_July2018.fasta -n mcavMaps --launcher -e asturm2017@fau.edu
 
-for f in *.trim.bt2.sam
-do
-  egrep -v "chr" < "$f" > "$f".mcav.sam
-done
 
 #These sam files should now only have MCAV reads
 
 ################################################################################
 mkdir zooxSams
-srun cp ./sams/*.sam ./zooxSams
+mv ~/2bRAD/mexico/concatRun/sams/zoox/zooxOnly/*.sam ~/2bRAD/mexico/concatRun/zooxSams
 
-#Re-write sams files without any reads aligning to algal symbiont transcriptomes
+################################################################################
+mkdir zooxBams
+srun cp ~/2bRAD/mexico/concatRun/zooxSams/*sam ./zooxBams
 
-for f in *.sam
-do
-  egrep "chr" < "$f" > "$f".zoox.sam
+#Compressing, sorting and indexing the SAM files, so they become BAM files:
+>s2b
+for file in *.sam; do
+echo "samtools sort -O bam -o ${file/.sam/}.bam $file && samtools index ${file/.sam/}.bam">>s2b;
 done
 
-#These sam files should now only have zoox reads
+launcher_creator.py -j s2b -n s2b -t 6:00:00 -e asturm2017@fau.edu -q shortq7
+sbatch s2b.slurm
 
+ls *bam >zooxBams
 ################################################################################
 mkdir mcavBams
 srun cp ./mcavSams/*.sam ./mcavBams
@@ -128,6 +149,27 @@ srun cp ./mcavBams/*bam* ./mcavBamsNoClones
 ##Remove technical replicates and any natural clones, picked sample with the highest coverage to retain
 #You should have 97 files
 ################################################################################
+mkdir zooxBamsNoClones
+srun cp ./zooxBams/*bam* ./zooxBamsNoClones
+
+##Remove technical replicates and any natural clones, picked sample with the highest coverage to retain
+#You should have 97 files
+
+FILTERS="-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -dosnpstat 1 -doHWE 1 -hwe_pval 1e-5 -sb_pval 1e-5 -hetbias_pval 1e-5 -skipTriallelic 1 -minInd 73 -snp_pval 1e-5 -minMaf 0.05"
+
+TODO="-doMajorMinor 1 -doMaf 1 -doCounts 1 -makeMatrix 1 -doIBS 1 -doCov 1 -doGeno 8 -doBcf 1 -doPost 1 -doGlf 2"
+
+srun angsd -b zooxBamsNoClones -GL 1 $FILTERS $TODO -P 1 -out mxZooxNoClones
+
+# how many SNPs?
+NSITES=`zcat mxZooxNoClones.mafs.gz | wc -l`
+echo $NSITES
+
+for i in *.bam; do
+    echo $i >> output
+    samtools idxstats $i | cut -f 1,3 >> zooxGenomeAlignmentRate
+done
+################################################################################
 mkdir mcavAngsdNoClones
 srun cp ./mcavBamsNoClones/*bam* ./mcavAngsdNoClones
 
@@ -143,12 +185,15 @@ srun angsd -b bamsNoClones -GL 1 $FILTERS $TODO -P 1 -out mxMcavNoClones
 NSITES=`zcat mxMcavNoClones.mafs.gz | wc -l`
 echo $NSITES
 
+mkdir ngsAdmix
+cp mxMcavNoClones.beagle.gz ./ngsAdmix
+cd ngsAdmix
 
 # NgsAdmix for K from 2 to 11 : do not run if the dataset contains clones or genotyping replicates!
-for K in `seq 2 11` ;
-do
-NGSadmix -likes mxMcavNoClones.beagle.gz -K $K -P 10 -o mxMcavNoClones_k${K};
-done
+#for K in `seq 2 11` ;
+#do
+#NGSadmix -likes mxMcavNoClones.beagle.gz -K $K -P 10 -o mxMcavNoClones_k${K};
+#done
 
 ## Next, take the likelihood value from each run of NGSadmix and put them into a file that can be used with Clumpak to calculate the most likely K using the methods of Evanno et al. (2005).
 >ngsAdmix
@@ -161,6 +206,13 @@ done
 launcher_creator.py -j ngsAdmix -n ngsAdmix -q shortq7 -N 3 -t 06:00:00
 
 sbatch ngsAdmix.slurm
+
+mkdir structureSelector
+
+srun cp *.qopt ./structureSelector
+cd structureSelector
+rename .qopt .Q *.qopt
+#Copy these and download as zipped directory
 
 > logfile
 
@@ -176,28 +228,21 @@ logs$K <- c(rep("10", 10), rep("11", 10), rep("1", 10), rep("2", 10), rep("3", 1
 write.table(logs[, c(2, 1)], "logfile_formatted", row.names = F, col.names = F, quote = F)      
 quit()
 
-# alternatively, to use real ADMIXTURE on called SNPs (requires plink and ADMIXTURE):
-mv mxMcavNoClones.bcf mxMcavNoClones.vcf
-cat mxMcavNoClones.vcf | sed 's/xpSc//g' >mxMcavNoClones_chr.vcf
-cat mxMcavNoClones_chr.vcf | sed 's/xfSc//g' >mxMcavNoClones_chr1.vcf
-cat mxMcavNoClones_chr1.vcf | sed 's/Sc//g' >mxMcavNoClones_chr2.vcf
-plink --vcf mxMcavNoClones_chr2.vcf --make-bed --allow-extra-chr --out mxMcavNoClones
-for K in `seq 1 11`; \
-do admixture --cv mxMcavNoClones.bed $K | tee mxMcavNoClonesAdmix_${K}.out; done
+###relatedness
 
-grep -h CV mxMcavNoClonesAdmix*.out
+FILTERS="-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -dosnpstat 1 -doHWE 1 -hwe_pval 1e-5 -sb_pval 1e-5 -hetbias_pval 1e-5 -skipTriallelic 1 -minInd 73 -snp_pval 1e-5 -minMaf 0.05"
 
-CV error (K=1): 0.48286
-CV error (K=2): 0.47085
-CV error (K=3): 0.47107
-CV error (K=4): 0.47461
-CV error (K=5): 0.49017
-CV error (K=6): 0.51627
-CV error (K=7): 0.54396
-CV error (K=8): 0.57667
-CV error (K=9): 0.60988
-CV error (K=10): 0.64002
-CV error (K=11): 0.67720
+TODO="-doMajorMinor 1 -doMaf 1 -doCounts 1 -makeMatrix 1 -doIBS 1 -doCov 1 -doGeno 8 -doBcf 1 -doPost 1 -doGlf 3"
+
+srun angsd -b bamsNoClones -GL 1 $FILTERS $TODO -P 1 -out mxMcavRelate
+
+zcat mxMcavRelate.mafs.gz | cut -f5 |sed 1d >freq
+NIND=`cat bamsNoClones | wc -l`
+srun ngsRelate -f freq -g mxMcavRelate.glf.gz -n $NIND -z bamsNoClones >relatedness
+
+#Heterozygosity on variant sites Only
+srun --mem=100GB Rscript ~/bin/heterozygosity_beagle.R mxMcavNoClones.beagle.gz
+#Prints individual heterozygosity
 ################################################################################
 mkdir bayescan
 cd bayescan
@@ -258,3 +303,27 @@ nano mxDepth
 
 ./bayescenv mxMcav.bayescan -env mxDepth
 ################################################################################
+################################################################################
+
+#Calculating population parameters no filter on excess heterozygosity
+# estimating site frequency likelihoods for each population, also saving allele frequencies (for genome scan)
+
+mkdir angsdPopStats
+
+srun cp ./mcavBamsNoClones/*bam* ./angsdPopStats #copy over all the bam files (clones removed) and the bam lists for each pop. Pop definitions are below
+
+FILTERS="-uniqueOnly 1 -remove_bads 1  -skipTriallelic 1 -minMapQ 20 -minQ 25 -doHWE 1 -sb_pval 1e-5 -hetbias_pval 1e-5 -minInd 73" #Note there are no MAF or snp filters so as not to affect allelic frequencies that may mess with heterozygosity calcs
+
+TODO="-doMajorMinor 1 -doMaf 1 -dosnpstat 1 -doPost 2 -doGeno 11 -doGlf 2"
+
+srun angsd -b bamsNoClones -GL 1 $FILTERS $TODO -P 1 -out mxMcavNoSNPFilter
+
+NSITES=`zcat mxMcavNoSNPFilter.mafs.gz | wc -l`
+echo $NSITES
+
+srun --mem=100GB Rscript ~/bin/heterozygosity_beagle.R mxMcavNoSNPFilter.beagle.gz
+#Prints individual heterozygosity
+
+echo '#!/bin/bash' > RHet.sh
+echo 'Rscript ~/bin/heterozygosity_beagle.R mxMcavNoSNPFilter.beagle.gz' >> RHet.sh
+sbatch -e RHet.e%j -o RHet.o%j --mem=200GB --mail-user asturm2017@fau.edu --mail-type=ALL RHet.sh
