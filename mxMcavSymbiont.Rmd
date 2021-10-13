@@ -40,10 +40,9 @@ setwd('/Users/student/Documents/GitHub/mxMcavSnp/')
 For the following analyses we will require the use of multiple different R packages, we can use the package *pacman* to quickly load them.
 ```{r, load packages, include = TRUE, message = FALSE, warning = FALSE, results = 'hide'}
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load("adegenet", "dendextend", "flextable", "gdata", "ggdendro", "hierfstat", "Imap", "kableExtra", 
-               "paletteer", "patchwork", "officer", "poppr", "RColorBrewer", "reshape2", "StAMPP", 
-               "tidyverse", "vcfR", "vegan", "WGCNA", "ggnewscale", "rnaturalearth", "sf", "ggspatial", 
-               "cowplot", "marmap", "dplyr", "edgeR", "MCMC.OTU", "pairwiseAdonis", "distGeo")
+pacman::p_load("adegenet", "dendextend", "flextable", "gdata", "ggdendro", "hierfstat", "Imap", "kableExtra", "paletteer", "patchwork", "officer", "poppr", "RColorBrewer", "reshape2", "StAMPP", 
+"tidyverse", "vcfR", "vegan", "WGCNA", "ggnewscale", "rnaturalearth", "sf", "ggspatial", 
+"cowplot", "marmap", "dplyr", "edgeR", "MCMC.OTU", "pairwiseAdonis", "distGeo")
 
 pacman::p_load_gh("eliocamp/ggnewscale", "ropensci/rnaturalearthhires")
 ```
@@ -103,7 +102,7 @@ mxMapA = ggplot() +
 
 #mxMapA
 
-#ggsave("mxMapNoInset.tiff", plot = mxMapA, width = 30, height = 20, units = "cm", dpi = 600)
+#ggsave("mxMapNoInset.png", plot = mxMapA, width = 30, height = 20, units = "cm", dpi = 600)
 set.seed(224)
 inset = ggplot() +
   geom_segment(aes(x = -103, xend = -80, y = 18.5, yend = 30), color = "gray92", size = .55) +
@@ -169,7 +168,7 @@ mxMap = ggdraw() +
 
 mxMap
 
-ggsave("./figures/fig1.tiff", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 600)
+ggsave("./figures/fig1.png", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 600)
 ```
 
 ##Host PCoA with IBS
@@ -237,7 +236,7 @@ mxSnpPcoaPlot = mxSnpPcoaPlotA +
 
 mxSnpPcoaPlot
 
-ggsave("./figures/fig2.tiff", plot = mxSnpPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+ggsave("./figures/fig2.png", plot = mxSnpPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
 ```
 
 ## AMOVA and Pairwise Fst
@@ -336,14 +335,14 @@ snpHeatmap = snpHeatmapA + theme(
 
 snpHeatmap
 
-ggsave("./figures/fig3.tiff", plot = snpHeatmap, width = 30, height = 15, units = "cm", dpi = 300)
+ggsave("./figures/fig3.png", plot = snpHeatmap, width = 30, height = 15, units = "cm", dpi = 300)
 ```
 
 ## NGSAdmix Plot
 ```{r, ADMIXTURE}
 paletteer_d("NineteenEightyR::miami2")
-#colPal2=c("#FFFFCC", "#41B6C4")
-colPal2=c("#3FB8AFFF", "#DAD8A7FF")
+colPal2=c("turquoise", "yellow")
+#colPal2=c("#3FB8AFFF", "#DAD8A7FF")
 mxNgsAdmix <- read.csv("mxMcavNoClones_k2k3.csv") %>% arrange(site, depthZoneM, -cluster2.2)
 # mxK2$sample = factor(mxK2$sample, levels = mxK2$sample[order(-mxK2$cluster2)])
 sampleCounts = plyr::count(mxNgsAdmix, c('site','depthZoneM'))
@@ -389,8 +388,8 @@ p2 = ggplot(data = subset(mdat, subset = mdat$Ancestry %in% c("cluster2.1", "clu
 p2
 
 ###########
-#colPal3=c("#FFFFCC", "#41B6C4", "#225EA8")
-colPal3=c("#3FB8AFFF", "#DAD8A7FF", "#FF3D7FFF")
+colPal3=c("turquoise", "yellow", "hot pink")
+#colPal3=c("#3FB8AFFF", "#DAD8A7FF", "#FF3D7FFF")
 # mxK3 <- read.csv("mxMcavNoClones_K3.csv") %>% arrange(pop, depthZoneM, -cluster2)
 # # mxK3$sample = factor(mxK3$sample, levels = mxK3$sample[order(-mxK3$cluster2)])
 # sampleCountsK3 = plyr::count(mxK3, c('pop','depthZoneM'))
@@ -438,11 +437,12 @@ p3
 combinedAdmix = (p2 | p3)
 combinedAdmix
 
-ggsave("./figures/fig4.tiff", plot = combinedAdmix, width = 70, height = 40, units = "cm", dpi = 300)
+ggsave("./figures/fig4.png", plot = combinedAdmix, width = 70, height = 40, units = "cm", dpi = 300)
 ```
 
 ##ITS2-type Profiles
 ```{r, its2BarPlot}
+
 its2Profs = read.csv("mxIts2ProfCounts.csv", header = TRUE, check.names = FALSE)
 head(its2Profs)
 
@@ -534,6 +534,9 @@ its2ProfsPlot = its2ProfsPlotA +
         panel.border = element_blank(),
         panel.background = element_rect(fill = "white"),
         panel.grid=element_blank(),
+        #panel.background=element_rect(fill=NA, colour="grey25"),
+        #panel.spacing.x=grid:::unit(0, "lines"),
+        #panel.border = element_rect(fill=NA,color="black", size=2, linetype="solid"),
         plot.background = element_blank(),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12),
@@ -542,7 +545,7 @@ its2ProfsPlot = its2ProfsPlotA +
 
 its2ProfsPlot
 
-ggsave("./figures/fig5.tiff", plot = its2ProfsPlot, width = 8.5, height = 8.5, unit = "in", dpi = 600)
+ggsave("./figures/fig5.png", plot = its2ProfsPlot, width = 8.5, height = 8.5, unit = "in", dpi = 600)
 ```
 
 ##ITS2 Stats Analysis
@@ -646,5 +649,5 @@ mxZooxPcoaPlot = mxZooxPcoaPlotA +
 
 mxZooxPcoaPlot
 
-ggsave("./figures/fig6.tiff", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+ggsave("./figures/fig6.png", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
 ```
