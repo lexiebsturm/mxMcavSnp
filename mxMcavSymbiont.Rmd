@@ -373,7 +373,7 @@ p2 = ggplot(data = subset(mdat, subset = mdat$Ancestry %in% c("cluster2.1", "clu
         axis.title.y = element_blank(),
         axis.ticks.x=element_blank(),
         axis.ticks.y=element_blank(),
-        strip.background = element_rect(fill = "white", size = 0.9, color="black"),
+        strip.background = element_rect(fill = "white", size = 2, color="black"),
         strip.text.x = element_text(size = 30),
         strip.text.y = element_blank(),
         #strip.text=element_text(size=20, angle=90),
@@ -420,7 +420,7 @@ p3 = ggplot(data = subset(mdat, subset = mdat$Ancestry %in% c("cluster3.1", "clu
         axis.title.y = element_blank(),
         axis.ticks.x=element_blank(),
         axis.ticks.y=element_blank(),
-        strip.background = element_rect(fill = "white", size = 0.9, color="black"),
+        strip.background = element_rect(fill = "white", size = 2, color="black"),
         strip.text.x = element_text(size = 30),
         strip.text.y = element_text(size = 30),
         #strip.text=element_text(size=20, angle=90),
@@ -449,6 +449,7 @@ head(its2Profs)
 its2Profs$depthZoneM = factor(its2Profs$depthZoneM, levels = c("10", "15", "25", "35"))
 levels(its2Profs$depthZoneM)
 
+its2Profs$site = factor(its2Profs$site)
 its2Profs$site = factor(its2Profs$site, levels(its2Profs$site)[c(1,2)])
 its2Profs = its2Profs[order(its2Profs$site, its2Profs$depthZoneM), ]
 head(its2Profs)
@@ -510,12 +511,14 @@ levels(gssProf$site)
 #Construct bar plot
 
 its2ProfsPlotA = ggplot(gssProf, aes(x = barPlotOrder, y = count, fill = factor(otu))) +
-  geom_bar(position = "stack", stat = "identity", color = "black", size = 0.25) + 
+  geom_bar(position = "stack", stat = "identity", color = "black", size = 0.25, width = 1) + 
   ylab("Proportion") +
-  scale_fill_paletteer_d("dichromat::Categorical.12")+
+  scale_fill_paletteer_d("dichromat::Categorical_12")+
   labs(fill = expression(paste(italic("ITS2"), " type profile"))) +
   guides(fill = guide_legend(ncol = 2, reverse = FALSE)) +
-  facet_grid(depthZoneM ~ site, scales = "free_x") + #faceting plots by Depth and Site
+  facet_grid(depthZoneM ~ site, scales = "free_x") +#faceting plots by Depth and Site
+  scale_x_discrete(expand=c(0, 0)) +
+  scale_y_continuous(expand=c(0, 0)) +
   theme_bw()
 
 its2ProfsPlot = its2ProfsPlotA +
@@ -531,16 +534,16 @@ its2ProfsPlot = its2ProfsPlotA +
         legend.key = element_blank(),
         legend.key.size = unit(0.75,"line"),
         legend.background = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_rect(fill = "white"),
+        # panel.border = element_blank(),
+        # panel.background = element_rect(fill = "white"),
         panel.grid=element_blank(),
-        #panel.background=element_rect(fill=NA, colour="grey25"),
-        #panel.spacing.x=grid:::unit(0, "lines"),
-        #panel.border = element_rect(fill=NA,color="black", size=2, linetype="solid"),
+        panel.background=element_rect(fill=NA, colour="grey25"),
+        panel.spacing.x=grid:::unit(0, "lines"),
+        panel.border = element_rect(fill=NA,color="black", size=1, linetype="solid"),
         plot.background = element_blank(),
         strip.text.x = element_text(size = 12),
         strip.text.y = element_text(size = 12),
-        strip.background = element_rect(fill = "white", size = 0.9)
+        strip.background = element_rect(fill = "white", size = 1)
   )
 
 its2ProfsPlot
