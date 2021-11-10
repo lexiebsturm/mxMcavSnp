@@ -251,7 +251,7 @@ setPop(mxGenlightPopDepth) = ~popDepth
 amova <- poppr.amova(mxGenlightPopDepth, ~popDepth) #Runs AMOVA
 amova
 set.seed(1999)
-amovasignif <- randtest(amova, nrepet = 99) #Calculates significance levels of the AMOVA with 99 permutations
+amovasignif <- randtest(amova, nrepet = 999) #Calculates significance levels of the AMOVA with 999 permutations
 amovasignif
 plot(amovasignif)
 
@@ -259,7 +259,7 @@ plot(amovasignif)
 #mxGenlightPopDepth$pop = factor(mxGenlightPopDepth$pop, levels(mxGenlightPopDepth$pop)[c(4,3,2,1,5,6,8,7)])
 
 set.seed(694)
-mx.fst <- stamppFst(mxGenlightPopDepth, nboots = 99, percent = 95, nclusters = 4) #99 permutations
+mx.fst <- stamppFst(mxGenlightPopDepth, nboots = 999, percent = 95, nclusters = 4) #99 permutations
 mx.fst$Fsts
 mx.fst$Pvalues
 
@@ -335,7 +335,7 @@ snpHeatmap = snpHeatmapA + theme(
 
 snpHeatmap
 
-ggsave("./figures/fig3.png", plot = snpHeatmap, width = 30, height = 15, units = "cm", dpi = 300)
+ggsave("./figures/fig3.png", plot = snpHeatmap, width = 35, height = 15, units = "cm", dpi = 300)
 ```
 
 ## NGSAdmix Plot
