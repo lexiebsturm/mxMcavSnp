@@ -25,6 +25,8 @@ This is the code that accompanies the publication *Depth-dependent genetic struc
 
 If you have any issues or questions about the code please feel free to send an email to lexie.sturm@gmail.com.
 
+[![DOI](https://zenodo.org/badge/381362197.svg)](https://zenodo.org/badge/latestdoi/381362197)
+
 ***
 
 # Basic setup of R environment
@@ -168,7 +170,7 @@ mxMap = ggdraw() +
 
 mxMap
 
-ggsave("./figures/fig1.png", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 600)
+ggsave("./figures/figure1.tiff", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 300)
 ```
 
 ##Host PCoA with IBS
@@ -236,7 +238,7 @@ mxSnpPcoaPlot = mxSnpPcoaPlotA +
 
 mxSnpPcoaPlot
 
-ggsave("./figures/fig2.png", plot = mxSnpPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+ggsave("./figures/figure2.tiff", plot = mxSnpPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
 ```
 
 ## AMOVA and Pairwise Fst
@@ -335,7 +337,7 @@ snpHeatmap = snpHeatmapA + theme(
 
 snpHeatmap
 
-ggsave("./figures/fig3.png", plot = snpHeatmap, width = 35, height = 15, units = "cm", dpi = 300)
+ggsave("./figures/figure3.tiff", plot = snpHeatmap, width = 35, height = 15, units = "cm", dpi = 300)
 ```
 
 ## NGSAdmix Plot
@@ -437,7 +439,7 @@ p3
 combinedAdmix = (p2 | p3)
 combinedAdmix
 
-ggsave("./figures/fig4.png", plot = combinedAdmix, width = 70, height = 40, units = "cm", dpi = 300)
+ggsave("./figures/figure4.jpg", plot = combinedAdmix, width = 70, height = 40, units = "cm", dpi = 300)
 ```
 
 ##ITS2-type Profiles
@@ -548,7 +550,7 @@ its2ProfsPlot = its2ProfsPlotA +
 
 its2ProfsPlot
 
-ggsave("./figures/fig5.png", plot = its2ProfsPlot, width = 8.5, height = 8.5, unit = "in", dpi = 600)
+ggsave("./figures/figure5.tiff", plot = its2ProfsPlot, width = 8.5, height = 8.5, unit = "in", dpi = 300)
 ```
 
 ##ITS2 Stats Analysis
@@ -652,5 +654,5 @@ mxZooxPcoaPlot = mxZooxPcoaPlotA +
 
 mxZooxPcoaPlot
 
-ggsave("./figures/fig6.png", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
+ggsave("./figures/figure6.tiff", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
 ```
