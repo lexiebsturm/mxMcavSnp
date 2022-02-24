@@ -240,16 +240,37 @@ zcat mxMcavRelate.mafs.gz | cut -f5 |sed 1d >freq
 NIND=`cat bamsNoClones | wc -l`
 srun ngsRelate -f freq -g mxMcavRelate.glf.gz -n $NIND -z bamsNoClones >relatedness
 
-#Heterozygosity on variant sites Only
-srun --mem=100GB Rscript ~/bin/heterozygosity_beagle.R mxMcavNoClones.beagle.gz
-#Prints individual heterozygosity
+#making a bed file for pcAdapt analysis
+
+srun plink --vcf mxMcavNoClones.bcf --make-bed --allow-extra-chr --out mxMcavNoClones
+
+#scp bim file for analysis in R
+
+##Run ADMIXTURE
+# ADMIXTURE with cross-validation to select K  (install it first, see beginning of this readme)
+mkdir admixture
+srun cp ../*.bcf .
+cat mxMcavNoClones.bcf | sed 's/xpSc//g' >mxMcavNoClones_chr.vcf
+cat mxMcavNoClones_chr.vcf | sed 's/xfSc//g' >mxMcavNoClones_chr1.vcf
+cat mxMcavNoClones_chr1.vcf | sed 's/Sc//g' >mxMcavNoClones_chr2.vcf
+plink --vcf mxMcavNoClones_chr2.vcf --make-bed --allow-extra-chr --out mxMcavNoClones_noChr
+for K in `seq 1 11`; \
+do admixture --cv mxMcavNoClones_noChr.bed $K | tee mxMcavNoClones_${K}.out; done
+
+
+# minimal cross-validation error = optimal K
+grep -h CV *.out
+#Selects K=2
+
+
+
+
 ################################################################################
 mkdir bayescan
 cd bayescan
-srun cp ../macvANGSDNoClones/mxMcavNoClones.vcf.gz . #Note do not use the renamed version, pgdspider has a tough time parsing the samples into pops when you do
-srun gunzip mxMcavNoClones.vcf.gz
+srun cp ../macvAngsdNoClones/mxMcavNoClones.bcf .
 
-#scp bspops to koko
+#Make a pop file with all eight reef-depth pops called reefDepthPops
 
 echo "############
 # VCF Parser questions
@@ -269,7 +290,7 @@ VCF_PARSER_PL_QUESTION=true
 # Do you want to exclude loci with only missing data?
 VCF_PARSER_EXC_MISSING_LOCI_QUESTION=false
 # Select population definition file:
-VCF_PARSER_POP_FILE_QUESTION=./bspops
+VCF_PARSER_POP_FILE_QUESTION=./reefDepthPops
 # Only output SNPs with a phred-scaled quality of at least:
 VCF_PARSER_QUAL_QUESTION=
 # Do you want to include non-polymorphic SNPs?
@@ -280,12 +301,103 @@ VCF_PARSER_GTQUAL_QUESTION=
 WRITER_FORMAT=GESTE_BAYE_SCAN
 # Specify which data type should be included in the GESTE / BayeScan file  (GESTE / BayeScan can only analyze one data type per file):
 GESTE_BAYE_SCAN_WRITER_DATA_TYPE_QUESTION=SNP
-############" >vcf2bayescan.spid
+############" >vcf2bayescanReefDepth.spid
 
-srun java -Xmx1024m -Xms512m -jar ~/bin/PGDSpider_2.0.7.1/PGDSpider2-cli.jar -inputfile mxMcavNoClones.vcf -outputfile mxMcav.bayescan -spid vcf2bayescan.spid
+srun java -Xmx1024m -Xms512m -jar ~/bin/PGDSpider_2.0.7.1/PGDSpider2-cli.jar -inputfile mxMcavNoClones.bcf -outputfile mxMcavReefDepth.bayescan -spid vcf2bayescanReefDepth.spid
 
 # launching bayescan (this might take 12-24 hours)
-srun bayescan mxMcav.bayescan -threads=20
+echo "bayescan mxMcavReefDepth.bayescan -threads=20" > bsReefDepth
+
+launcher_creator.py -j bsReefDepth -n bsReefDepth -q shortq7 -N 3 -t 06:00:00
+
+sbatch bsReefDepth.slurm
+
+###Code the bayescan pops based solely on depth 10 m=pop1, 15=pop2, 25=pop3, 35=pop4
+nano depthPops
+
+echo "############
+# VCF Parser questions
+PARSER_FORMAT=VCF
+# Do you want to include a file with population definitions?
+VCF_PARSER_POP_QUESTION=true
+# Only input following regions (refSeqName:start:end, multiple regions: whitespace separated):
+VCF_PARSER_REGION_QUESTION=
+# What is the ploidy of the data?
+VCF_PARSER_PLOIDY_QUESTION=DIPLOID
+# Only output following individuals (ind1, ind2, ind4, ...):
+VCF_PARSER_IND_QUESTION=
+# Output genotypes as missing if the read depth of a position for the sample is below:
+VCF_PARSER_READ_QUESTION=
+# Take most likely genotype if "PL" or "GL" is given in the genotype field?
+VCF_PARSER_PL_QUESTION=true
+# Do you want to exclude loci with only missing data?
+VCF_PARSER_EXC_MISSING_LOCI_QUESTION=false
+# Select population definition file:
+VCF_PARSER_POP_FILE_QUESTION=./depthPops
+# Only output SNPs with a phred-scaled quality of at least:
+VCF_PARSER_QUAL_QUESTION=
+# Do you want to include non-polymorphic SNPs?
+VCF_PARSER_MONOMORPHIC_QUESTION=false
+# Output genotypes as missing if the phred-scale genotype quality is below:
+VCF_PARSER_GTQUAL_QUESTION=
+# GESTE / BayeScan Writer questions
+WRITER_FORMAT=GESTE_BAYE_SCAN
+# Specify which data type should be included in the GESTE / BayeScan file  (GESTE / BayeScan can only analyze one data type per file):
+GESTE_BAYE_SCAN_WRITER_DATA_TYPE_QUESTION=SNP
+############" >vcf2bayescanDepth.spid
+
+srun java -Xmx1024m -Xms512m -jar ~/bin/PGDSpider_2.0.7.1/PGDSpider2-cli.jar -inputfile mxMcavNoClones.bcf -outputfile mxMcavDepth.bayescan -spid vcf2bayescanDepth.spid
+
+# launching bayescan (this might take 12-24 hours)
+echo "bayescan mxMcavDepth.bayescan -threads=20" > bsDepth
+
+launcher_creator.py -j bsDepth -n bsDepth -q shortq7 -N 3 -t 06:00:00
+
+sbatch bsDepth.slurm
+
+
+###Code the bayescan pops based solely on reef pop1=Alacranes, pop2=BDN
+nano reefPops
+
+echo "############
+# VCF Parser questions
+PARSER_FORMAT=VCF
+# Do you want to include a file with population definitions?
+VCF_PARSER_POP_QUESTION=true
+# Only input following regions (refSeqName:start:end, multiple regions: whitespace separated):
+VCF_PARSER_REGION_QUESTION=
+# What is the ploidy of the data?
+VCF_PARSER_PLOIDY_QUESTION=DIPLOID
+# Only output following individuals (ind1, ind2, ind4, ...):
+VCF_PARSER_IND_QUESTION=
+# Output genotypes as missing if the read depth of a position for the sample is below:
+VCF_PARSER_READ_QUESTION=
+# Take most likely genotype if "PL" or "GL" is given in the genotype field?
+VCF_PARSER_PL_QUESTION=true
+# Do you want to exclude loci with only missing data?
+VCF_PARSER_EXC_MISSING_LOCI_QUESTION=false
+# Select population definition file:
+VCF_PARSER_POP_FILE_QUESTION=./reefPops
+# Only output SNPs with a phred-scaled quality of at least:
+VCF_PARSER_QUAL_QUESTION=
+# Do you want to include non-polymorphic SNPs?
+VCF_PARSER_MONOMORPHIC_QUESTION=false
+# Output genotypes as missing if the phred-scale genotype quality is below:
+VCF_PARSER_GTQUAL_QUESTION=
+# GESTE / BayeScan Writer questions
+WRITER_FORMAT=GESTE_BAYE_SCAN
+# Specify which data type should be included in the GESTE / BayeScan file  (GESTE / BayeScan can only analyze one data type per file):
+GESTE_BAYE_SCAN_WRITER_DATA_TYPE_QUESTION=SNP
+############" >vcf2bayescanReef.spid
+
+srun java -Xmx1024m -Xms512m -jar ~/bin/PGDSpider_2.0.7.1/PGDSpider2-cli.jar -inputfile mxMcavNoClones.bcf -outputfile mxMcavReef.bayescan -spid vcf2bayescanReef.spid
+
+# launching bayescan (this might take 12-24 hours)
+echo "bayescan mxMcavReef.bayescan -threads=20" > bsReef
+
+launcher_creator.py -j bsReef -n bsReef -q shortq7 -N 3 -t 06:00:00
+
+sbatch bsReef.slurm
 
 removeBayescanOutliers.pl bayescan=mxMcav.baye_fst.txt vcf=mxMcavNoClones.vcf FDR=0.1 mode=extract > mxVcfOutliers.vcf
 
@@ -294,14 +406,23 @@ srun sed 's/^##fileformat=VCFv4.2(angsd version)/##fileformat=VCFv4.2/' mxVcfOut
 removeBayescanOutliers.pl bayescan=mxMcav.baye_fst.txt vcf=mxMcavNoClones.vcf FDR=0.1 mode=delete > mxVcfNeutral.vcf
 
 ##Bayescenv
-scp asturm2017@koko-login.hpc.fau.edu:/mnt/beegfs/home/asturm2017/2bRAD/mexico/concatRun/bayescan/mxMcav.bayescan /Users/student/bin/bayescenv-1.1/bin/mac64
 
-cd /Users/student/bin/bayescenv-1.1/bin/mac64
+echo "25 15 10 35 35 15 10 25" > mxEnvReefDepth
 
-nano mxDepth
-#10 15 25 35 10 15 25 35
+# launching bayescan (this might take 12-24 hours)
+echo "bayescenv mxMcavReefDepth.bayescenv -env mxEnvReefDepth" > bayescenvReefDepth
 
-./bayescenv mxMcav.bayescan -env mxDepth
+launcher_creator.py -j bayescenvReefDepth -n bayescenvReefDepth -q shortq7 -N 3 -t 06:00:00
+
+sbatch bayescenvReefDepth.slurm
+
+cp mxMcavReefDepth.bayescenv mxMcavReefDepth.std.bayescenv
+echo "0.365341725 0.608902876 1.096025176 1.339586326 1.339586326 0.608902876 1.096025176 0.365341725" > stdMxEnvDepth
+
+echo "bayescenv mxMcavReefDepth.std.bayescenv -env stdMxEnvDepth" > bayescenvStdReefDepth
+launcher_creator.py -j bayescenvStdReefDepth -n bayescenvStdReefDepth -q shortq7 -N 3 -t 06:00:00
+
+sbatch bayescenvStdReefDepth.slurm
 ################################################################################
 ################################################################################
 
@@ -309,6 +430,8 @@ nano mxDepth
 # estimating site frequency likelihoods for each population, also saving allele frequencies (for genome scan)
 
 mkdir angsdPopStats
+
+###ALL SITES
 
 srun cp ./mcavBamsNoClones/*bam* ./angsdPopStats #copy over all the bam files (clones removed) and the bam lists for each pop. Pop definitions are below
 
@@ -327,3 +450,9 @@ srun --mem=100GB Rscript ~/bin/heterozygosity_beagle.R mxMcavNoSNPFilter.beagle.
 echo '#!/bin/bash' > RHet.sh
 echo 'Rscript ~/bin/heterozygosity_beagle.R mxMcavNoSNPFilter.beagle.gz' >> RHet.sh
 sbatch -e RHet.e%j -o RHet.o%j --mem=200GB --mail-user asturm2017@fau.edu --mail-type=ALL RHet.sh
+
+###VARIANT SITES
+srun cp ../mcavAngsdNoClones/mxMcavNoClones.beagle.gz .
+echo '#!/bin/bash' > RHetSnp.sh
+echo 'Rscript ~/bin/heterozygosity_beagle.R mxMcavNoClones.beagle.gz' >> RHetSnp.sh
+sbatch -e RHetSnp.e%j -o RHetSnp.o%j --mem=200GB --mail-user asturm2017@fau.edu --mail-type=ALL RHetSnp.sh

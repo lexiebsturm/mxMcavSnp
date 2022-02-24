@@ -44,7 +44,7 @@ For the following analyses we will require the use of multiple different R packa
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("adegenet", "dendextend", "flextable", "gdata", "ggdendro", "hierfstat", "Imap", "kableExtra", "paletteer", "patchwork", "officer", "poppr", "RColorBrewer", "reshape2", "StAMPP", 
 "tidyverse", "vcfR", "vegan", "WGCNA", "ggnewscale", "rnaturalearth", "sf", "ggspatial", 
-"cowplot", "marmap", "dplyr", "edgeR", "MCMC.OTU", "pairwiseAdonis", "distGeo")
+"cowplot", "marmap", "dplyr", "edgeR", "MCMC.OTU", "pairwiseAdonis", "distGeo", "pcadapt")
 
 pacman::p_load_gh("eliocamp/ggnewscale", "ropensci/rnaturalearthhires")
 ```
@@ -172,7 +172,27 @@ mxMap
 
 ggsave("./figures/figure1.tiff", plot = mxMap, width = 25, height = 20, units = "cm", dpi = 300)
 ```
+##Heterozygosity
+```{r, Heterozygosity}
+hetero=read.csv("heterozygosity.csv")
+snpI2P = read.csv("mxInds2PopsNoClones.csv") 
+hetero=bind_cols(snpI2P, hetero)
 
+heteroMeans=hetero %>%
+  group_by(popDepth) %>%
+  summarise(meanAllSites = mean(allSites), meanVariantSites = mean(variantSites), n = n())
+
+heteroMeans1=as.table(heteroMeans)
+
+max(heteroStatAllSites$mean, na.rm = TRUE)
+min(heteroStatAllSites$mean, na.rm = TRUE)
+
+
+heteroPlot <- ggplot(hetero, aes(x=popDepth, y=variantSites)) +
+  geom_boxplot()+
+  theme_bw()
+heteroPlot
+```
 ##Host PCoA with IBS
 ```{r, Host PCoA with IBS}
 snpMa = as.matrix(read.table("mxMcavNoClones.ibsMat"))
@@ -265,16 +285,8 @@ mx.fst <- stamppFst(mxGenlightPopDepth, nboots = 999, percent = 95, nclusters = 
 mx.fst$Fsts
 mx.fst$Pvalues
 
-# pca.1 <- glPca(mxGenlightPopDepth, nf=300, n.cores=1) 
-# 
-# # proportion of explained variance by first three axes
-# pca.1$eig[1]/sum(pca.1$eig) # proportion of variation explained by 1st axis
-# pca.1$eig[2]/sum(pca.1$eig) # proportion of variation explained by 2nd axis 
-# pca.1$eig[3]/sum(pca.1$eig) # proportion of variation explained by 3rd axis
-# 
 # #####K-Means Clustering and DAPC
 # grp <- find.clusters(mxGenlightPopDepth, max.n.clust=11, glPca = pca.1, perc.pca = 100, n.iter=1e6, n.start=1000) 
-# 
 
 pop.order <- c("Alacranes-10", "Bajos del Norte-10", "Alacranes-15", "Bajos del Norte-15", "Alacranes-25", "Bajos del Norte-25","Alacranes-35", "Bajos del Norte-35")
 
@@ -656,3 +668,586 @@ mxZooxPcoaPlot
 
 ggsave("./figures/figure6.tiff", plot = mxZooxPcoaPlot, height = 5, width = 7, units = "in", dpi = 300)
 ```
+
+##Outlier Analysis
+```{r, outliers}
+##read in the bed file made using plink on the bcf on koko
+path_to_file <- "/Users/student/Documents/GitHub/mxMcavSnp/mxMcavNoClones.bed"
+mxPca <- read.pcadapt(path_to_file, type = "bed")
+
+mxPca=read.pcadapt("/Users/student/Documents/GitHub/mxMcavSnp/mxMcavNoClones.bcf", type = "vcf")
+
+#choose a number of K more than any number it would be
+
+scree <- pcadapt(input = mxPca, K = 20)
+plot(scree, option = "screeplot")
+
+#Look at the scree plot and select the number K to the left of the straight line, in this case K=4
+
+mxPcadapt <- pcadapt(mxPca, K = 4, min.maf=0) #The default minMaf is 0.05 but for some reason it still filters out SNPs (even though the dataset should already be filtered for minMaf so I set it to 0 so it wouldn't do that)
+summary(mxPcadapt)
+head(mxPcadapt)
+head(mxPcadapt$pvalues)
+qval = p.adjust(mxPcadapt$pvalues, method = "BH")
+qPcadapt=as.data.frame(qval)
+outsPcadapt=which(qPcadapt[,"qval"]<0.05)
+
+source('plot_R.r')
+
+datReefDepth = read.table("mxMcavReefDepth.baye_fst.txt",header=T)
+head(datReefDepth)
+table(datReefDepth[,"qval"]<0.1)
+datReefDepth$locus = c(1:nrow(datReefDepth))
+outsReefDepth=which(datReefDepth[,"qval"]<0.1)
+plot_bayescan("mxMcavReefDepth.baye_fst.txt",FDR=0.1,add_text=F,size=0.5,highlight=outsReefDepth)
+outliersReefDepth= datReefDepth %>% filter(qval < 0.1)
+outsQvalReefDepth=dplyr::select(outliers, qval, locus)
+
+datDepth = read.table("mxMcavDepth.baye_fst.txt",header=T)
+head(datDepth)
+table(datDepth[,"qval"]<0.1)
+datDepth$locus = c(1:nrow(datDepth))
+outsDepth=which(datDepth[,"qval"]<0.1)
+plot_bayescan("mxMcavDepth.baye_fst.txt",FDR=0.1,add_text=F,size=0.5,highlight=outsDepth)
+outliersDepth= datDepth %>% filter(qval < 0.1)
+outsQvalDepth=dplyr::select(outliers, qval, locus)
+
+
+## SNPs potentially under selection
+genes = read.table("mcav_gene_regions.tab")
+names(genes) = c("chromo","start","end","gene")
+
+# expand gene regions ± 2000 bp
+genes$start = genes$start -2000
+genes$end = genes$end +2000
+
+gnames = read.table("mcav_cog.txt", sep = "\t")
+names(gnames) = c("gene", "cog", "protein")
+
+genes = full_join(genes, gnames, by = "gene")
+genes$protein=as.character(genes$protein)
+genes$protein[is.na(genes$protein)]="unknown"
+
+#how many annotated genes do we have?
+nrow(genes[genes$protein!="unknown",])
+head(genes)
+
+snpLoci = read.table("mxMcavNoClones.mafs.gz", header = TRUE)
+snpLoci$locus = c(1:nrow(snpLoci))
+
+#########Annotated outliers by reef:depth
+outsByGeneReefDepth = snpLoci %>% dplyr::select(locus, chromo, position) %>%
+  filter(locus %in% outsReefDepth) %>%
+  #filter(locus %in% outsQval) %>%
+  full_join(., outsQvalReefDepth, by = "locus") %>%
+  full_join(., genes, by = "chromo") %>%
+  filter(position>start, position<end)
+
+outsByGeneReefDepth = outsByGeneReefDepth[c(1:3,5:9,4)]
+
+for(i in 1:nrow(outsByGeneReefDepth)) {
+  if (outsByGeneReefDepth$qval[i] < .01) {
+    outsByGeneReefDepth$sig[i] = "***"
+  } else {
+    if (outsByGeneReefDepth$qval[i] < .05) {
+      outsByGeneReefDepth$sig[i] = "**"
+    } else {
+      outsByGeneReefDepth$sig[i] = "*"
+    }
+  }
+}
+
+outsByGeneReefDepth
+
+#only show annotated genes by reef depth
+outsAnnoReefDepth = outsByGeneReefDepth %>% filter(protein != "unknown")
+outsAnnoReefDepth
+
+df_uniqReefDepth <- unique(outsAnnoReefDepth$locus)
+length(df_uniqReefDepth)
+df_uniq1ReefDepth <- unique(outsAnnoReefDepth$gene)
+length(df_uniq1ReefDepth)
+
+ write.csv(x=outsAnnoReefDepth, file="annotatedOutliersReefDepth.csv")
+
+#########Annotated outliers by depth only
+outsByGeneDepth = snpLoci %>% dplyr::select(locus, chromo, position) %>%
+  filter(locus %in% outsDepth) %>%
+  #filter(locus %in% outsQval) %>%
+  full_join(., outsQvalDepth, by = "locus") %>%
+  full_join(., genes, by = "chromo") %>%
+  filter(position>start, position<end)
+
+outsByGeneDepth = outsByGeneDepth[c(1:3,5:9,4)]
+
+for(i in 1:nrow(outsByGeneDepth)) {
+  if (outsByGeneDepth$qval[i] < .01) {
+    outsByGeneDepth$sig[i] = "***"
+  } else {
+    if (outsByGeneDepth$qval[i] < .05) {
+      outsByGeneDepth$sig[i] = "**"
+    } else {
+      outsByGeneDepth$sig[i] = "*"
+    }
+  }
+}
+
+outsByGeneDepth
+
+#only show annotated genes by reef depth
+outsAnnoDepth = outsByGeneDepth %>% filter(protein != "unknown")
+outsAnnoDepth
+
+
+write.csv(x=outsAnnoDepth, file="annotatedOutliersDepth.csv")
+```
+
+
+```{r, goMWU}
+mcavGo=read.table("Mcavernosa_gene2go.tab")
+names(mcavGo)=c("gene", "GO")
+
+genes = read.table("mcav_gene_regions.tab")
+names(genes) = c("chromo","start","end","gene")
+
+# expand gene regions ± 2000 bp
+genes$start = genes$start -2000
+genes$end = genes$end +2000
+
+#gnames = read.table("mcav_cog.txt", sep = "\t")
+#names(gnames) = c("gene", "cog", "protein")
+
+genes = full_join(genes, mcavGo, by = "gene")
+genes$GO=as.character(genes$GO)
+genes$protein[is.na(genes$GO)]="unknown"
+
+#how many annotated genes do we have?
+nrow(genes[genes$protein!="unknown",])
+head(genes)
+
+snpLoci = read.table("mxMcavNoClones.mafs.gz", header = TRUE)
+snpLoci$locus = c(1:nrow(snpLoci))
+
+snpsByGene = snpLoci %>% dplyr::select(locus, chromo, position) %>%
+  #filter(locus %in% highOuts) %>%
+  full_join(., genes, by = "chromo") %>%
+  filter(position>start, position<end, !is.na(GO))
+
+snpsByGene$outlier = 0
+for(i in 1:nrow(snpsByGene)){
+  if(snpsByGene$locus[i] %in% outs){
+    snpsByGene$outlier[i] = 1
+    }else{
+      snpsByGene$outlier[i] = 0
+    }
+}
+
+snpsByGene$outlier
+
+input=snpsByGene %>% dplyr::select(gene, outlier)
+
+write.csv(input, file="input.csv", row.names = FALSE, quote = FALSE)
+# two columns of comma-separated values: gene id, To perform standard GO enrichment analysis based on Fisher's exact test, use binary measure (0 or 1, i.e., either sgnificant or not).
+
+# First, press command-D on mac or ctrl-shift-H in Rstudio and navigate to the directory containing scripts and input files. Then edit, mark and execute the following bits of code, one after another.
+
+
+# Edit these to match your data file names: 
+input="input.csv"
+#input="heats.csv" # two columns of comma-separated values: gene id, continuous measure of significance. To perform standard GO enrichment analysis based on Fisher's exact test, use binary measure (0 or 1, i.e., either sgnificant or not).
+goAnnotations="Mcavernosa_gene2go.tab"
+#goAnnotations="amil_defog_iso2go.tab" # two-column, tab-delimited, one line per gene, multiple GO terms separated by semicolon. If you have multiple lines per gene, use nrify_GOtable.pl prior to running this script.
+goDatabase="go.obo" # download from http://www.geneontology.org/GO.downloads.ontology.shtml
+goDivision="MF" # either MF, or BP, or CC
+source("gomwu.functions.R")
+
+
+# ------------- Calculating stats
+# It might take a few minutes for MF and BP. Do not rerun it if you just want to replot the data with different cutoffs, go straight to gomwuPlot. If you change any of the numeric values below, delete the files that were generated in previos runs first.
+
+gomwuStats(input, goDatabase, goAnnotations, goDivision,
+	perlPath="/usr/bin/perl", # replace with full path to perl executable if it is not in your system's PATH already
+	largest=0.1,  # a GO category will not be considered if it contains more than this fraction of the total number of genes
+	smallest=5,   # a GO category should contain at least this many genes to be considered
+	clusterCutHeight=0.25, # threshold for merging similar (gene-sharing) terms. See README for details.
+#	Alternative="g" # by default the MWU test is two-tailed; specify "g" or "l" of you want to test for "greater" or "less" instead. 
+#Module=TRUE,Alternative="g" # un-remark this if you are analyzing a SIGNED WGCNA module (values: 0 for not in module genes, kME for in-module genes). In the call to gomwuPlot below, specify absValue=0.001 (count number of "good genes" that fall into the module)
+Module=TRUE # un-remark this if you are analyzing an UNSIGNED WGCNA module 
+)
+# do not continue if the printout shows that no GO terms pass 10% FDR.
+# ----------- Plotting results
+# 
+# quartz()
+# results=gomwuPlot(input,goAnnotations,goDivision,
+#  	absValue=-log(0.05,10),  # genes with the measure value exceeding this will be counted as "good genes". This setting is for signed log-pvalues. Specify absValue=0.001 if you are doing Fisher's exact test for standard GO enrichment or analyzing a WGCNA module (all non-zero genes = "good genes").
+#  #	absValue=1, # un-remark this if you are using log2-fold changes
+#  	level1=0.1, # FDR threshold for plotting. Specify level1=1 to plot all GO categories containing genes exceeding the absValue.
+#  	level2=0.05, # FDR cutoff to print in regular (not italic) font.
+#  	level3=0.01, # FDR cutoff to print in large bold font.
+#  	txtsize=1.2,    # decrease to fit more on one page, or increase (after rescaling the plot so the tree fits the text) for better "word cloud" effect
+#  	treeHeight=0.5, # height of the hierarchical clustering tree
+#  #	colors=c("dodgerblue2","firebrick1","skyblue2","lightcoral") # these are default colors, un-remar and change if needed
+#  )
+#  # manually rescale the plot so the tree matches the text 
+#  # if there are too many categories displayed, try make it more stringent with level1=0.05,level2=0.01,level3=0.001.  
+#  
+#  # text representation of results, with actual adjusted p-values
+#  results[[1]]
+# 
+# 
+# # ------- extracting representative GOs
+# 
+# # this module chooses GO terms that best represent *independent* groups of significant GO terms
+# 
+# pcut=1e-2 # adjusted pvalue cutoff for representative GO
+# hcut=0.9 # height at which cut the GO terms tree to get "independent groups". 
+# 
+# # plotting the GO tree with the cut level (un-remark the next two lines to plot)
+# # plot(results[[2]],cex=0.6)
+# # abline(h=hcut,col="red")
+# 
+# # cutting
+# ct=cutree(results[[2]],h=hcut)
+# annots=c();ci=1
+# for (ci in unique(ct)) {
+#   message(ci)
+# 	rn=names(ct)[ct==ci]
+# 	obs=grep("obsolete",rn)
+# 	if(length(obs)>0) { rn=rn[-obs] }
+# 	if (length(rn)==0) {next}
+# 	rr=results[[1]][rn,]
+# 	bestrr=rr[which(rr$pval==min(rr$pval)),]
+# 	best=1
+# 	if(nrow(bestrr)>1) {
+# 		nns=sub(" .+","",row.names(bestrr))
+# 		fr=c()
+# 		for (i in 1:length(nns)) { fr=c(fr,eval(parse(text=nns[i]))) }
+# 		best=which(fr==max(fr))
+# 	}
+# 	if (bestrr$pval[best]<=pcut) { annots=c(annots,sub("\\d+\\/\\d+ ","",row.names(bestrr)[best]))}
+# }
+# 
+# mwus=read.table(paste("MWU",goDivision,input,sep="_"),header=T)
+# bestGOs=mwus[mwus$name %in% annots,]
+# bestGOs
+
+```
+### Discriminant analysis of principal components
+
+```{r, unconstrained dapc}
+dapcKPal = paletteer_d("wesanderson::Darjeeling1")[c(1,2,3)]
+#flPal = paletteer_d("vapoRwave::jazzCup")[c(2:5)]
+
+mxVcf = read.vcfR("mxMcavNoClones.bcf")
+mxGenlightPopDepth = vcfR2genlight(mxVcf, n.cores = 2) # Converts the vcf file into a file format that poppr uses the "genlight" format
+locNames(mxGenlightPopDepth) = paste(mxVcf@fix[,1],mxVcf@fix[,2],sep="_")
+popData = read.csv("mxInds2PopsNoClones.csv") # Reads in population data for each sample
+
+strata(mxGenlightPopDepth) = data.frame(popData)
+setPop(mxGenlightPopDepth) = ~popDepth
+
+
+# popData$depthZoneM = factor(popData$depthZoneM)
+# popData$depthZoneM = factor(popData$depthZoneM, levels(popData$depthZoneM)[c(10,15,25,35)])
+
+
+
+# popData$pop = factor(popData$pop)
+# popData$pop = factor(popData$pop, levels(popData$pop)[c(4, 1, 3, 2)])
+
+
+
+# popData$popDepth = factor(popData$popDepth)
+# popData$popDepth = factor(popData$popDepth, levels(popData$popDepth)[c(8,7,2,1,6,5,4,3)])
+# levels(popData$popdepth) = c("UK Shallow", "UK Mesophotic", "LK Shallow", "LK Mesophotic", "TB Shallow", "TB Mesophotic", "RH Shallow", "RH Mesophotic")
+# 
+# 
+
+mxGenlightPopDepth$pop = factor(mxGenlightPopDepth$pop)
+mxGenlightPopDepth$pop = factor(mxGenlightPopDepth$pop, levels(mxGenlightPopDepth$pop)[c(3,2,1,4,7,6,8,5)])
+
+
+
+# Find the best number of clusters
+# You may need to run without [choose.n.clust = FALSE] and [criterion = ]
+# In this case you would examine the BIC plot and pick nClust interactively in the console
+#n.pca is number of samples -1
+#max.n.clust is the number of pops +3
+
+# grp = find.clusters(mxGenlightPopDepth, n.pca = 96, max.n.clust = 11)
+grp = find.clusters(mxGenlightPopDepth, n.pca = 96, max.n.clust = 11, choose.n.clust = FALSE, criterion = "goesup")
+
+
+
+#3 clusters found
+
+
+
+```
+
+
+
+```{r, BIC plot}
+#Admixture CV values
+kVals1= data.frame(K = c(1:11),CV= c(0.48344, 0.47061, 0.47192, 0.47511, 0.49162, 0.51462, 0.54407, 0.57964, 0.61354, 0.64019, 0.67834))
+#BIC Values
+kVals2 = data.frame(K = c(1:11),BIC = grp$Kstat)
+
+cvPlotA = ggplot(data = kVals1, aes (x = K, y = CV)) +
+geom_line(color = "gray65") +
+geom_point(color = "gray65", size = 1) +
+geom_point(x = 2, y = 0.47061, color = "red", size = 1) +
+xlab(expression(paste("Number of clusters (",italic(K),")",sep = ""))) +
+ylab("Cross-Validation Error") +
+coord_cartesian(ylim = c(0.47,0.68)) +
+scale_x_continuous(breaks = c(seq(1,11,2))) +
+scale_y_continuous(breaks = c(seq(0.47,0.68,0.02))) +
+theme_bw()
+
+
+
+cvPlot = cvPlotA +
+theme(axis.title.x = element_text(color = "black", size = 8),
+axis.text.x = element_text(color = "black", size = 6),
+axis.ticks.x = element_line(color = "black"),
+axis.title.y = element_text(color = "black", size = 8),
+axis.text.y = element_text(color = "black", size = 6),
+axis.ticks.y = element_line(color = "black"),
+legend.position = "none",
+panel.border = element_rect(color = "black", size = 1),
+panel.background = element_blank(),
+plot.background = element_blank(),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank())
+
+cvPlot
+
+bicPlotA = ggplot(data = kVals2, aes (x = K, y = BIC)) +
+geom_line(color = "gray65") +
+geom_point(color = "gray65", size = 1) +
+geom_point(x = 3, y = grp$stat, color = "red", size = 1) +
+xlab(expression(paste("Number of clusters (",italic(K),")",sep = ""))) +
+ylab("BIC") +
+coord_cartesian(ylim = c(630,655)) +
+scale_x_continuous(breaks = c(seq(1,11,2))) +
+scale_y_continuous(breaks = c(seq(630,655,5))) +
+theme_bw()
+
+
+
+bicPlot = bicPlotA +
+theme(axis.title.x = element_text(color = "black", size = 8),
+axis.text.x = element_text(color = "black", size = 6),
+axis.ticks.x = element_line(color = "black"),
+axis.title.y = element_text(color = "black", size = 8),
+axis.text.y = element_text(color = "black", size = 6),
+axis.ticks.y = element_line(color = "black"),
+legend.position = "none",
+panel.border = element_rect(color = "black", size = 1),
+panel.background = element_blank(),
+plot.background = element_blank(),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank())
+
+
+
+bicPlot
+
+kSelectionPlots = (cvPlot|bicPlot)
+
+ggsave("./figures/kSelectionPlots.png", plot = kSelectionPlots, height = 4.5, width = 14, units = "in", dpi = 300)
+
+
+```
+
+
+
+```{r, unconstrained dapc plot}
+table(pop(mxGenlightPopDepth), grp$grp)
+
+
+#Displays frequency plot
+table.value(table(pop(mxGenlightPopDepth), grp$grp))
+
+
+#Figuring out the optimal number of PCs to keep
+set.seed(92)
+opt1 = optim.a.score(dapc(mxGenlightPopDepth, grp$grp, n.pca = 96, n.da = 3), n.sim = 99)
+
+
+
+dapc1 = dapc(mxGenlightPopDepth, grp$grp, n.pca = opt1$best, n.da = 3)
+
+
+
+dapc1DF = as.data.frame(dapc1$ind.coord) %>% cbind(grp = dapc1$grp)
+
+
+
+scatter(dapc1)
+scatter(dapc1,1,1, col = dapcKPal, bg = "white", scree.da = TRUE, legend = TRUE, solid = 0.8)
+
+
+
+df1PlotA = ggplot(data = dapc1DF, aes(x = LD1, group = grp, fill = grp, color = grp)) +
+geom_point(y = 0, shape = "|", size = 3, alpha = 0.7) +
+geom_density(alpha = 0.7, size = 0.25) +
+xlab("Discriminant function 1") +
+ylab("Density") +
+scale_color_manual(values = dapcKPal, name = "Cluster") +
+scale_fill_manual(values = dapcKPal, name = "Cluster") +
+guides(color = "none", fill = "none", shape = "none") +
+theme_bw()
+
+
+
+df1Plot = df1PlotA +
+theme(axis.title.x = element_text(color = "black", size = 12),
+axis.text.x = element_blank(),
+axis.ticks.x = element_blank(),
+axis.title.y = element_text(color = "black", size = 12),
+axis.text.y = element_text(color = "black", size = 10),
+axis.ticks.y = element_line(color = "black"),
+legend.position = "bottom",
+panel.border = element_rect(color = "black", size = 1),
+panel.background = element_blank(),
+plot.background = element_blank(),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank())
+
+
+
+df1Plot
+```
+
+
+
+```{r, location prior dapc}
+set.seed(124)
+opt2 = optim.a.score(dapc(mxGenlightPopDepth, mxGenlightPopDepth$pop, n.pca = 96, n.da = 7), n.sim = 99)
+
+
+dapc2 = dapc(mxGenlightPopDepth, mxGenlightPopDepth$pop, n.pca=40, n.da = 7)
+#dapc2 = dapc(mxGenlightPopDepth, mxGenlightPopDepth$pop, n.pca = opt2$best, n.da = 7)
+
+
+
+mxDapcVar = round(dapc1$eig/sum(dapc1$eig)*100, 1)
+head(mxDapcVar)
+
+mxDapcVar2 = round(dapc2$eig/sum(dapc2$eig)*100, 1)
+head(mxDapcVar2)
+
+
+
+grpCentroids = as.data.frame(dapc1$grp.coord)
+#colnames(grpCentroids) = c("popLD1", "popLD2", "popLD3", "popLD4", "popLD5", "popLD6", "popLD7")
+colnames(grpCentroids) = c("popLD1", "popLD2")
+grpCentroids$K = levels(grp$grp)
+
+
+
+mxDapc = popData %>% cbind(dapc1$ind.coord) %>% cbind(K = dapc1$grp) %>% left_join(grpCentroids) 
+
+
+grpCentroids2 = as.data.frame(dapc2$grp.coord)
+colnames(grpCentroids2) = c("popLD1", "popLD2", "popLD3", "popLD4", "popLD5", "popLD6", "popLD7")
+grpCentroids2$popDepth = levels(popData$popDepth)
+mxDapc2 = popData %>% cbind(dapc2$ind.coord) %>% left_join(grpCentroids2) %>% cbind(K = dapc1$grp)
+
+```
+
+
+
+```{r, dapc plot by cluster}
+
+dapcKPal = paletteer_d("wesanderson::Darjeeling1")[c(1,2,3)]
+mxDapc$depthZoneM=as.factor(mxDapc$depthZoneM)
+mxDapcKPlotA = ggplot(mxDapc, aes(x = LD1, y = LD2, fill = K, shape = depthZoneM)) +
+geom_hline(yintercept = 0, color = "gray90", size = 0.5) +
+geom_vline(xintercept = 0, color = "gray90", size = 0.5) +
+geom_segment(aes(x = popLD1, y = popLD2, xend = LD1, yend = LD2, color = K),alpha = 0.5) +
+geom_point(aes(x = LD1, y = LD2, shape = depthZoneM, color = K), size = 2, alpha = 0.5, show.legend = TRUE) +
+scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+# stat_ellipse(data = sintDapc, type = "t" , geom = "polygon", alpha = 0.1, fill = NA, size = 0.4) +
+#geom_point(aes(x = popLD1, y = popLD2, shape = depthZoneM), size = 4, color = "gray15") +
+# geom_label(aes(x = popLD1, y = popLD2, label = popdepth), fill = "white", size = 2) +
+scale_fill_manual(values = dapcKPal, name = "Cluster") +
+scale_color_manual(values = dapcKPal, guide = NULL) +
+xlab(paste("DA 1 (", mxDapcVar[1], "%)", sep = "")) +
+ylab(paste("DA 2 (", mxDapcVar[2], "%)", sep = "")) +
+guides(fill = guide_legend(override.aes = list(shape = 22, color = NA, alpha = NA), order = 1)) +
+theme_bw()
+
+
+
+mxDapcKPlot = mxDapcKPlotA +
+theme(axis.title.x = element_text(color = "black", size = 10),
+axis.text.x = element_blank(),
+axis.ticks.x = element_blank(),
+axis.line.x = element_blank(),
+axis.title.y = element_text(color = "black", size = 10),
+axis.text.y = element_blank(),
+axis.ticks.y = element_blank(),
+axis.line.y = element_blank(),
+legend.position = "right",
+panel.border = element_rect(color = "black", size = 1),
+panel.background = element_rect(fill = "white"),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank())
+
+
+
+mxDapcKPlot
+
+ggsave("./figures/clusterDapc.png", plot = mxDapcKPlot, height = 4.5, width = 7, units = "in", dpi = 300)
+
+```
+
+
+
+```{r, locprior K dapc plot}
+mxPal=c("seagreen3", "blue")
+mxDapc2$depthZoneM=as.factor(mxDapc$depthZoneM)
+mxDapcPlotA = ggplot(mxDapc2, aes(x = LD1, y = LD2, fill = site, shape = depthZoneM)) +
+geom_hline(yintercept = 0, color = "gray90", size = 0.5) +
+geom_vline(xintercept = 0, color = "gray90", size = 0.5) +
+geom_segment(aes(x = popLD1, y = popLD2, xend = LD1, yend = LD2, color = site),alpha = 0.5) +
+geom_point(aes(x = LD1, y = LD2, shape = depthZoneM, color = site), size = 2, alpha = 0.5, show.legend = TRUE) +
+scale_shape_manual(values = c(24,22,23,25), breaks=c("10","15", "25", "35"), name = "Depth Zone", labels=c("10 m","15 m", "25 m", "35 m")) +
+# stat_ellipse(data = sintDapc, type = "t" , geom = "polygon", alpha = 0.1, fill = NA, size = 0.4) +
+geom_point(aes(x = popLD1, y = popLD2, shape = depthZoneM), size = 4, color = "gray15") +
+# geom_label(aes(x = popLD1, y = popLD2, label = popdepth), fill = "white", size = 2) +
+scale_fill_manual(values = mxPal, name = "Reef") +
+scale_color_manual(values = mxPal, guide = NULL) +
+xlab(paste("DA 1 (", mxDapcVar2[1], "%)", sep = "")) +
+ylab(paste("DA 2 (", mxDapcVar2[2], "%)", sep = "")) +
+guides(fill = guide_legend(override.aes = list(shape = 22, color = NA, alpha = NA), order = 1)) +
+theme_bw()
+
+
+
+mxDapcPlot = mxDapcPlotA +
+theme(axis.title.x = element_text(color = "black", size = 10),
+axis.text.x = element_blank(),
+axis.ticks.x = element_blank(),
+axis.line.x = element_blank(),
+axis.title.y = element_text(color = "black", size = 10),
+axis.text.y = element_blank(),
+axis.ticks.y = element_blank(),
+axis.line.y = element_blank(),
+legend.position = "right",
+panel.border = element_rect(color = "black", size = 1),
+panel.background = element_rect(fill = "white"),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank())
+
+
+
+mxDapcPlot
+
+ggsave("./figures/locDapc.png", plot = mxDapcPlot, height = 4.5, width = 7, units = "in", dpi = 300)
+
+```
+
+
